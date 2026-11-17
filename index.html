@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>服薬確認 | 期間指定QR版（テスト）</title>
+<title>服薬確認 | 期間1枚QR版（テスト）</title>
 <script src="./config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
@@ -1750,7 +1750,7 @@ function periodDates(start,end){
   if(!a||!b)return {dates:[],error:'開始日と終了日を正しく入力してください。'};
   const days=Math.round((b.getTime()-a.getTime())/86400000)+1;
   if(days<1)return {dates:[],error:'終了日は開始日以降に設定してください。'};
-  if(days>93)return {dates:[],error:'印刷は93日以内の期間に分けてください。'};
+  if(days>366)return {dates:[],error:'期間は最長366日までにしてください。'};
   return {dates:Array.from({length:days},(_,i)=>moveDay(start,i)),error:''};
 }
 function monthBoundary(date,monthOffset=0){
@@ -1759,9 +1759,9 @@ function monthBoundary(date,monthOffset=0){
   const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+monthOffset+1,0));
   return [first.toISOString().slice(0,10),last.toISOString().slice(0,10)];
 }
-// QR内容: MC1|YYYY-MM-DD|P001 または MC1|YYYY-MM-DD|G001
-// これで期間中の同じ処方・袋でも1日ごとにQRが異なる。
-function dailyQrValue(id,date){return `MC1|${date}|${id}`;}
+// QR内容: MC2|開始日|終了日|P001（個別）または MC2|開始日|終了日|G001（一包化）。
+// 開始日・終了日はQRごとに登録済み処方の有効期間との共通部分に絞る。
+function periodQrValue(id,start,end){return `MC2|${start}|${end}|${id}`;}
 
 let client=null, user=null, staff=null, screen='login', scanStream=null, scanRaf=0, scanBusy=false, scanToken=0;
 const C={staff:[],residents:[],medicines:[],prescriptions:[],logs:[],corrections:[],date:null,qrGroups:[],qrGroupItems:[],qrReady:false};
@@ -2074,7 +2074,7 @@ async function adminSetActive(kind,id,active){
     if(b){b.disabled=false;b.textContent=active?'再有効化する':'無効化する'}
   }finally{adminBusy=false;}
 }
-// アプリ内QR発行（外部QR APIなし）。QRにはP/G番号＋服薬予定日を格納。
+// アプリ内QR発行（外部QR APIなし）。QRにはP/G番号＋有効開始日・終了日を格納。
 function qrSvg(code){
   const qr=new QR_LOCAL.QRCode(0,QR_LOCAL.level.H);qr.addData(code);qr.make();
   const size=qr.getModuleCount(),quiet=4,full=size+quiet*2,paths=[];
@@ -2084,16 +2084,22 @@ function qrSvg(code){
 function qrPNG(code){
   const q=new QR_LOCAL.QRCode(0,QR_LOCAL.level.H);q.addData(code);q.make();
   const n=q.getModuleCount(),quiet=4,px=15,total=n+quiet*2;
-  const cv=document.createElement('canvas');cv.width=total*px;cv.height=total*px+54;
+  const cv=document.createElement('canvas');cv.width=total*px;cv.height=total*px+94;
   const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
   ctx.fillStyle='#000';for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(q.isDark(y,x))ctx.fillRect((x+quiet)*px,(y+quiet)*px,px,px);
-  ctx.font='bold 28px sans-serif';ctx.textAlign='center';ctx.fillText(code,cv.width/2,total*px+39);return cv;
+  const period=/^MC2\|(\d{4}-\d{2}-\d{2})\|(\d{4}-\d{2}-\d{2})\|([PG][0-9]{3,8})$/.exec(code);
+  ctx.textAlign='center';ctx.fillStyle='#111';
+  ctx.font='bold 30px sans-serif';ctx.fillText(period?period[3]:code,cv.width/2,total*px+38);
+  if(period){ctx.font='19px sans-serif';ctx.fillText(period[1]+' ～ '+period[2],cv.width/2,total*px+74);}
+  return cv;
 }
 function downloadQrPNG(code){
   const canvas=qrPNG(code);
   canvas.toBlob(blob=>{
     if(!blob){notify('PNG画像を作成できませんでした');return}
-    const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`服薬QR_${code.replace(/[^0-9A-Za-z_-]/g,'_')}.png`;
+    const p=/^MC2\|(\d{4}-\d{2}-\d{2})\|(\d{4}-\d{2}-\d{2})\|([PG][0-9]{3,8})$/.exec(code);
+    const name=p?`${p[3]}_${p[1]}_${p[2]}`:code.replace(/[^0-9A-Za-z_-]/g,'_');
+    const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`服薬QR_${name}.png`;
     document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);
   },'image/png');
 }
@@ -2109,8 +2115,8 @@ function renderQRAdmin(info=''){
   stopScan();screen='admin';updateHeader();
   if(!Q.residentId||!C.residents.some(x=>x.id===Q.residentId&&x.is_active))Q.residentId=C.residents.find(x=>x.is_active)?.id||'';
   $('#app').innerHTML=`<span class="section-label">管理者専用</span><h2>QR作成・印刷</h2>
-    <p class="lead">登録済み処方から、開始日～終了日のQRを日付別に一括作成・印刷します。Excelへの二重入力は不要です。</p>
-    <div class="safety-panel">テスト用です。実データは使用しないでください。日付付きQRは当日以外の読み取りを停止しますが、従来のP/G番号のみのQRや手入力では日付を判別できません。本番運用前に旧QR・手入力の運用制限が必要です。印刷前に利用者・薬剤・日付・包装を確認してください。</div>
+    <p class="lead">登録済み処方から、指定期間に使えるQRを処方・一包化グループごとに1枚ずつ作成・印刷します。Excelへの二重入力は不要です。</p>
+    <div class="safety-panel">テスト用です。実データは使用しないでください。期間付きQRはその期間内に限り読み取りできます。同じQRを期間内の別の日にも読み取れるため、毎回、当日の服薬予定・利用者・時間帯・薬袋の現物を確認してください。旧QRと手入力には日付制限がないため、本番運用前の制限が必要です。印刷後に処方が変更された場合は古いラベルを回収してください。</div>
     ${C.qrReady?'':`<div class="err">03_QR一包化連携.sql が未設定か読み込めません。QR発行機能は停止しています。先にテスト用SupabaseでSQLを設定してください。</div>`}
     ${info?`<div class="info-panel" role="status">${esc(info)}</div>`:''}
     <div class="qr-top-actions"><button id="qr-show-print" class="${Q.panel==='print'?'active':''}">QR一覧・印刷</button><button id="qr-show-group" class="${Q.panel==='group'?'active':''}">一包化を登録</button></div>
@@ -2138,17 +2144,27 @@ function listQrEntries(residentId,slot,date){
 }
 // 指定期間内の各日について処方・包装の有効性を検査する。
 // 薬がない日を自動補完せず、その日有効な処方だけを発行する。
+// 指定期間内の有効な処方・一包化を重複なく集約する。
+// 同じIDは1つのQRにまとめ、実際に有効な最初と最後の日だけを許可する。
 function listQrPeriod(residentId,slot,start,end){
   const period=periodDates(start,end);
   if(period.error)return {items:[],warnings:[],days:[],error:period.error};
-  const items=[],warnings=[];
+  const found=new Map(),warnings=new Set();
   for(const date of period.dates){
     const daily=listQrEntries(residentId,slot,date);
-    for(const entry of daily.items)items.push({...entry,scheduledDate:date,qrValue:dailyQrValue(entry.id,date)});
-    for(const message of daily.warnings)warnings.push(`${date}：${message}`);
+    for(const entry of daily.items){
+      const key=entry.type+':'+entry.id;
+      const existing=found.get(key);
+      if(existing){existing.validEnd=date;}
+      else found.set(key,{...entry,validStart:date,validEnd:date});
+    }
+    for(const message of daily.warnings)warnings.add(`${date}：${message}`);
   }
-  if(items.length>180)return {items:[],warnings,days:period.dates,error:'QRが180枚を超えます。印刷期間を短くするか、条件を分けてください。'};
-  return {items,warnings,days:period.dates,error:''};
+  const items=[...found.values()].map(entry=>({...entry,
+    qrValue:periodQrValue(entry.id,entry.validStart,entry.validEnd)
+  })).sort((a,b)=>a.id.localeCompare(b.id,'ja'));
+  if(items.length>180)return {items:[],warnings:[...warnings],days:period.dates,error:'QRが180種類を超えます。利用者や時間帯を分けて印刷してください。'};
+  return {items,warnings:[...warnings],days:period.dates,error:''};
 }
 function renderQRFilters(){
   const target=$('#qr-content');if(!target)return;
@@ -2160,16 +2176,16 @@ function renderQRFilters(){
   target.innerHTML=`<form class="card admin-form" id="qr-filters"><h3>印刷するQRを選択</h3>
     <div class="qr-options"><div><label for="qr-res">利用者</label><select id="qr-res" required>${activeResidentOptions(Q.residentId)}</select></div>
     <div><label for="qr-slot">時間帯</label><select id="qr-slot">${SLOTS.map(t=>`<option ${Q.slot===t?'selected':''}>${t}</option>`).join('')}</select></div>
-    <div><label for="qr-start">印刷期間：開始日</label><input id="qr-start" type="date" value="${esc(Q.startDate)}" required></div>
-    <div><label for="qr-end">印刷期間：終了日</label><input id="qr-end" type="date" value="${esc(Q.endDate)}" required></div></div>
+    <div><label for="qr-start">QRの使用期間：開始日</label><input id="qr-start" type="date" value="${esc(Q.startDate)}" required></div>
+    <div><label for="qr-end">QRの使用期間：終了日</label><input id="qr-end" type="date" value="${esc(Q.endDate)}" required></div></div>
     <div class="qr-period-presets" aria-label="期間のかんたん選択">
       <button type="button" data-qr-preset="today">今日だけ</button>
       <button type="button" data-qr-preset="week">今日から7日間</button>
       <button type="button" data-qr-preset="month">今月</button>
       <button type="button" data-qr-preset="next">来月</button>
     </div>
-    <p class="mini">開始日から終了日まで、各日に有効な処方を1日分ずつQR化します。QRには服薬予定日を埋め込み、別の日に読み取ると照合を停止します。一包化内の処方は個別QRに出しません。</p>
-    ${result.error?`<div class="err" role="alert">${esc(result.error)}</div>`:`<div id="qr-filter-msg" class="info-panel">対象期間：${result.days.length}日間 ／ QR：${result.items.length}枚（個別 ${singleCount}枚・一包化 ${groupCount}枚）</div>`}
+    <p class="mini">期間内の同じ処方・一包化グループは1枚のQRにまとめます。QRには実際に有効な開始日と終了日を記録し、期間外の読み取りは停止します。薬が変わる場合は新しい処方IDで別のQRを作ります。一包化内の処方は個別QRに出しません。</p>
+    ${result.error?`<div class="err" role="alert">${esc(result.error)}</div>`:`<div id="qr-filter-msg" class="info-panel">対象期間：${result.days.length}日間 ／ QR：${result.items.length}枚（各処方・一包化につき1枚）（個別 ${singleCount}枚・一包化 ${groupCount}枚）</div>`}
     ${result.warnings.slice(0,10).map(w=>`<p class="err">${esc(w)}</p>`).join('')}
     ${result.warnings.length>10?`<p class="err">ほか ${result.warnings.length-10}件の不整合があります。</p>`:''}
     <button class="pri" type="submit" ${!C.qrReady||!!result.error||!result.items.length||!!result.warnings.length?'disabled':''}>指定期間のQR一覧を表示・印刷</button></form>
@@ -2244,21 +2260,20 @@ async function createGroup(e){
     if(error)throw error;
     if(data?.result!=='created')throw Error('登録完了を確認できませんでした');
     await loadMaster();Q.residentId=Q.groupResident;Q.slot=Q.groupSlot;Q.startDate=todayJST();Q.endDate=todayJST();Q.panel='print';
-    renderQRAdmin(id+' を登録しました。指定日に有効なQRを一覧表示できます。');
+    renderQRAdmin(id+' を登録しました。指定期間で使えるQRを一覧表示できます。');
   }catch(err){notify('登録を確認できません。再登録前にサーバーの一覧を更新してください。\n'+errorMessage(err));b.disabled=false;b.textContent='内容を確認して一包化QRを登録'}
   finally{adminBusy=false}
 }
 function printLabel(entry){
   const resident=repo.getResident(entry.residentId),drugNames=entry.rxs.map(rx=>`${esc(repo.getMedicine(rx.medicineId)?.name||'不明')}：${esc(rx.dose)}`);
-  const labelDate=entry.scheduledDate;
   return `<article class="qr-label"><div class="qr-label-kind">${entry.type==='group'?'一包化':'個別包装'} ／ ${esc(entry.slot)}</div>
-    <div class="qr-label-date">服薬予定日：${esc(labelDate)}</div>
+    <div class="qr-label-date">QR使用期間：${esc(entry.validStart)} ～ ${esc(entry.validEnd)}</div>
     <div class="qr-label-id">${esc(entry.id)}</div>${qrSvg(entry.qrValue)}
     <div class="qr-label-name">${esc(resident?.name||entry.residentId)}</div>
     <div class="qr-label-meta">${esc(resident?.room||'—')}号室 ／ ${esc(entry.slot)} ／ 処方期間：${esc(entry.rxs[0]?.startDate||'')} ～ ${esc(entry.rxs[0]?.endDate||'')}</div>
     <div class="qr-label-drugs">${drugNames.map(x=>`<div>${x}</div>`).join('')}</div>
-    <div class="qr-label-note">必ず服薬予定日・薬袋・処方内容を照合してから貼付</div>
-    <button class="noprint" type="button" data-qrdl="${esc(entry.qrValue)}">この日のQRをPNG保存</button></article>`;
+    <div class="qr-label-note">毎回、当日の服薬予定・利用者・時間帯・実物の薬を確認。処方変更後の古いQRは使用しないでください。</div>
+    <button class="noprint" type="button" data-qrdl="${esc(entry.qrValue)}">このQRをPNG保存</button></article>`;
 }
 function renderQRPrint(){
   if(!staff||staff.role!=='admin'){home();return}
@@ -2269,10 +2284,10 @@ function renderQRPrint(){
   if(data.warnings.length){renderQRAdmin('処方に不整合があります。印刷を停止しました。'+data.warnings.slice(0,3).join(' / '));return}
   stopScan();screen='qrprint';updateHeader();
   const r=repo.getResident(Q.residentId);
-  $('#app').innerHTML=`<div id="qr-page"><div id="print-toolbar"><h2>QR印刷プレビュー（期間指定）</h2>
+  $('#app').innerHTML=`<div id="qr-page"><div id="print-toolbar"><h2>QR印刷プレビュー（期間内1枚）</h2>
     <p class="lead">${esc(r?.name||Q.residentId)} ／ ${esc(Q.slot)} ／ ${esc(Q.startDate)} ～ ${esc(Q.endDate)} ｜ ${data.items.length}枚</p>
-    <div class="safety-panel">各QRには服薬予定日が含まれています。印刷された日付と薬袋の日付・中身を照合し、誤貼付を防止してください。処方変更後の古いラベルは再利用しないでください。個人情報を含むラベルを公共のプリンターに送らないでください。</div>
-    <button class="pri" id="qr-print-button">指定期間のQRを印刷する</button><button id="qr-print-back">条件を変更する</button></div>
+    <div class="safety-panel">1枚のQRを複数日に使用できます。QRは服薬済みの証明や薬の実物確認の代わりにはなりません。毎回、当日の服薬予定と現物を確認してください。処方変更後の古いラベルは回収してください。実在する利用者情報はテスト版に入力しないでください。</div>
+    <button class="pri" id="qr-print-button">QRラベルを印刷する</button><button id="qr-print-back">条件を変更する</button></div>
     <div class="qr-print-heading">${esc(r?.name||Q.residentId)} ／ ${esc(Q.slot)} ／ ${esc(Q.startDate)} ～ ${esc(Q.endDate)} （${data.items.length}枚）</div>
     <div class="qr-label-grid">${data.items.map(printLabel).join('')}</div></div>`;
   $('#qr-print-button').onclick=()=>window.print();
@@ -2479,7 +2494,14 @@ async function photoScan(e){
 }
 async function onCode(raw){stopScan();const qrText=String(raw||'').trim();if(!qrText){notify('処方IDを入力してください。');return}
   let code=qrText;
-  if(qrText.startsWith('MC1|')){
+  if(qrText.startsWith('MC2|')){
+    const p=/^MC2\|(\d{4}-\d{2}-\d{2})\|(\d{4}-\d{2}-\d{2})\|([PG][0-9]{3,8})$/.exec(qrText);
+    const period=p&&periodDates(p[1],p[2]);
+    if(!period||period.error){renderScan();notify('期間付きQRの形式・開始日・終了日を確認できません。再発行してください。');return}
+    const today=todayJST();
+    if(today<p[1]||today>p[2]){renderScan();notify(`このQRの使用期間は ${p[1]} ～ ${p[2]} です。今日は ${today} なので照合を停止しました。`);return}
+    code=p[3];
+  }else if(qrText.startsWith('MC1|')){
     const parts=/^MC1\|(\d{4}-\d{2}-\d{2})\|([PG][A-Za-z0-9_-]{1,40})$/.exec(qrText);
     if(!parts||!parseDateISO(parts[1])){renderScan();notify('日付付きQRの形式が正しくありません。もう一度読み取ってください。');return}
     const qrDate=parts[1],today=todayJST();
