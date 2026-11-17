@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>服薬確認 | Supabase連携版</title>
+<script src="./config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<style>
+/* ---------- Base ---------- */
+:root {
+  --page: #f5f6f3;
+  --paper: #ffffff;
+  --ink: #26332f;
+  --muted: #64726c;
+  --line: #d9e0db;
+  --main: #286a5d;
+  --main-dark: #1b5147;
+  --main-soft: #eaf3ef;
+  --danger: #a33d36;
+  --danger-soft: #fff3f1;
+  --warning-soft: #fcf7ed;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--page);
+  font: 17px/1.65 -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Yu Gothic', Meiryo, sans-serif;
+  letter-spacing: .01em;
+}
+button, input, select, textarea { font: inherit; }
+button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid #8dbaa8; outline-offset: 2px; }
+button:disabled { opacity: .46; cursor: not-allowed; }
+
+/* ---------- Header / progress ---------- */
+header {
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: auto;
+  padding: 21px 24px 17px;
+  max-width: 760px;
+}
+.brand { display: flex; flex-direction: column; line-height: 1.25; gap: 2px; }
+.brand-label { color: var(--main); font-weight: 700; font-size: 11px; letter-spacing: .15em; }
+.brand-name { font-size: 24px; font-weight: 750; letter-spacing: .035em; }
+#who { font-size: 14px; font-weight: 600; color: var(--muted); text-align: right; }
+.steps {
+  display: flex;
+  gap: 0;
+  max-width: 712px;
+  margin: 0 auto;
+  padding: 0 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.steps::-webkit-scrollbar { display: none; }
+.steps span {
+  position: relative;
+  flex: 1 0 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 13px 2px 12px;
+  border-bottom: 3px solid transparent;
+  color: #7b8881;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.steps span::before {
+  content: attr(data-number);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border: 1px solid #c9d2cc;
+  border-radius: 50%;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #748079;
+}
+.steps span.on { color: var(--main-dark); border-color: var(--main); }
+.steps span.on::before { color: #fff; background: var(--main); border-color: var(--main); }
+.steps span.done { color: #546c5e; }
+.steps span.done::before { color: var(--main); border-color: var(--main); }
+.steps span.history-step { flex: 0 0 auto; padding-left: 10px; padding-right: 10px; }
+.steps span.history-step::before { display: none; }
+
+/* ---------- Content ---------- */
+main { margin: 0 auto; max-width: 712px; padding: 27px 22px 68px; }
+h2 { font-size: clamp(24px, 5vw, 29px); font-weight: 750; line-height: 1.4; letter-spacing: -.035em; margin: 0 0 10px; }
+h3 { font-size: 17px; margin: 0 0 13px; font-weight: 700; }
+p { margin: 9px 0 14px; }
+.lead { color: var(--muted); font-size: 15px; line-height: 1.7; margin: 0 0 22px; }
+.section-label { display: block; margin: 0 0 8px; color: var(--main); font-size: 12px; font-weight: 750; letter-spacing: .1em; }
+.card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin-bottom: 15px;
+}
+.card > b:first-child { font-weight: 700; }
+.card .hint:last-child { margin-bottom: 0; }
+.hint { color: var(--muted); font-size: 14px; line-height: 1.65; }
+.big { font-size: 27px; font-weight: 750; line-height: 1.45; letter-spacing: -.02em; }
+.detail { display: flex; flex-wrap: wrap; align-items: baseline; gap: 7px 19px; }
+.detail-item { display: inline-flex; align-items: baseline; gap: 8px; }
+.detail-item small { font-size: 13px; color: var(--muted); }
+.detail-item b { font-size: 17px; }
+
+/* ---------- Buttons / form controls ---------- */
+button, .btn {
+  display: block;
+  width: 100%;
+  min-height: 54px;
+  background: var(--paper);
+  border: 1px solid #c9d4cd;
+  border-radius: 9px;
+  color: var(--ink);
+  text-align: center;
+  padding: 13px 19px;
+  margin: 10px 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.45;
+  transition: background .12s, border-color .12s;
+}
+button:not(:disabled):active { background: #edf2ee; }
+button.pri, button.ok {
+  background: var(--main);
+  color: #fff;
+  border-color: var(--main);
+}
+button.pri:not(:disabled):active, button.ok:not(:disabled):active { background: var(--main-dark); }
+button.ng { color: var(--danger); border-color: #e4b7b2; background: #fff; }
+button.ng:not(:disabled):active { background: var(--danger-soft); }
+button.sel { border-color: var(--main); background: var(--main-soft); color: var(--main-dark); box-shadow: inset 0 0 0 1px var(--main); }
+button.sel.pri { color: #fff; background: var(--main); }
+button.staff-choice, button.rc {
+  display: flex; align-items: center; justify-content: space-between;
+  text-align: left; padding: 18px 20px; min-height: 72px; margin: 0 0 9px;
+}
+button.staff-choice::after, button.rc::after {
+  content: ''; display: block; width: 8px; height: 8px;
+  border-top: 2px solid #778b81; border-right: 2px solid #778b81;
+  transform: rotate(45deg); flex-shrink: 0; margin-left: 14px;
+}
+/* 職員欄：タップすると直下に一覧を展開 */
+.staff-field { margin: 0 0 22px; }
+.staff-field-label { display: block; font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 9px; }
+button.staff-dropdown-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  min-height: 64px; margin: 0; padding: 14px 17px;
+  border: 1px solid #b8c7be; background: #fff; text-align: left;
+  font-size: 17px; font-weight: 600; color: var(--muted);
+}
+button.staff-dropdown-toggle.has-value { color: var(--ink); }
+button.staff-dropdown-toggle[aria-expanded="true"] {
+  border-color: var(--main); border-radius: 9px 9px 0 0;
+  box-shadow: inset 0 0 0 1px var(--main);
+}
+.staff-chevron {
+  display: block; flex: 0 0 10px; width: 10px; height: 10px;
+  border-right: 2px solid var(--main); border-bottom: 2px solid var(--main);
+  transform: rotate(45deg); transition: transform .15s ease;
+  margin-right: 4px; margin-top: -5px;
+}
+button.staff-dropdown-toggle[aria-expanded="true"] .staff-chevron { transform: rotate(225deg); margin-top: 5px; }
+.staff-dropdown-list {
+  display: grid; background: #fff; border: 1px solid var(--main); border-top: none;
+  border-radius: 0 0 9px 9px;
+  max-height: 300px;  /* 4〜5名が見える高さで固定 */
+  overflow-y: auto;   /* 職員が多い場合は一覧の内側をスクロール */
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #8ba69b #edf2ef;
+}
+.staff-dropdown-list::-webkit-scrollbar { width: 9px; }
+.staff-dropdown-list::-webkit-scrollbar-track { background: #edf2ef; }
+.staff-dropdown-list::-webkit-scrollbar-thumb {
+  background: #8ba69b;
+  border-radius: 6px;
+  border: 2px solid #edf2ef;
+}
+.staff-dropdown-list[hidden] { display: none; }
+button.staff-option {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 0; padding: 13px 18px; min-height: 58px; border: 0;
+  border-bottom: 1px solid var(--line); border-radius: 0;
+  text-align: left; background: #fff; font-size: 17px; font-weight: 600;
+}
+button.staff-option:last-child { border-bottom: none; }
+button.staff-option.selected { background: var(--main-soft); color: var(--main-dark); }
+button.staff-option small { color: var(--main); font-size: 12px; font-weight: 650; }
+button.staff-option:not(:disabled):active { background: var(--main-soft); }
+button.rc { justify-content: flex-start; gap: 14px; }
+button.rc::after { margin-left: auto; }
+.rc img { width: 64px; height: 64px; flex: 0 0 64px; border-radius: 8px; border: 1px solid var(--line); object-fit: cover; }
+.rc .resident-name { font-size: 19px; font-weight: 750; display: block; }
+.rc .resident-info { font-size: 13px; font-weight: 500; color: var(--muted); display: block; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin: 12px 0 10px; }
+.grid button { margin: 0; min-height: 56px; }
+.row { display: flex; gap: 10px; }
+.row > * { flex: 1; min-width: 0; }
+#back:not(.ng) { background: transparent; border: 0; color: var(--muted); text-align: left; font-size: 14px; padding: 10px 0; margin-top: 18px; min-height: 42px; width: auto; }
+#hist, #n3 { margin-top: 17px; background: transparent; border-color: var(--line); font-size: 15px; }
+#stop { background: transparent; border-color: var(--line); color: var(--muted); font-size: 15px; }
+#rst { border: 1px solid #e7c4c1; background: #fff; color: var(--danger); font-size: 15px; }
+input, select, textarea {
+  display: block; width: 100%; min-height: 51px; background: #fff;
+  border: 1px solid #bdcac2; border-radius: 8px; padding: 11px 13px;
+  color: var(--ink); font-size: 16px;
+}
+input::placeholder, textarea::placeholder { color: #84928a; }
+input + button, textarea + button { margin-top: 12px; }
+select { cursor: pointer; }
+textarea { resize: vertical; min-height: 100px; }
+label.ack { display: flex; align-items: center; gap: 12px; padding: 14px 0 4px; font-weight: 700; font-size: 15px; }
+label.ack input { width: 21px; height: 21px; min-height: 0; flex-shrink: 0; accent-color: var(--main); }
+.photo { width: 132px; height: 132px; border-radius: 9px; object-fit: cover; border: 1px solid var(--line); margin-bottom: 8px; }
+.person-card { text-align: center; padding: 29px 20px; }
+.person-card .person-room { display: inline-block; margin-top: 14px; padding: 4px 15px; border-radius: 5px; background: var(--page); color: var(--muted); font-weight: 700; font-size: 14px; }
+
+/* ---------- QR / status ---------- */
+.qrguide {
+  background: var(--warning-soft);
+  border: 1px solid #eee1c8;
+  border-left: 3px solid #c9a367;
+  border-radius: 7px;
+  padding: 13px 16px;
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 14px 0 19px;
+}
+.qrguide b { color: #5f4c2c; }
+#cam { padding: 5px 0 12px; }
+#cam video, video { width: 100%; max-height: 56vh; display: block; object-fit: contain; background: #14211f; border-radius: 10px; }
+#qrphoto { font-size: 14px; padding: 10px; min-height: 53px; }
+.err { background: var(--danger-soft); border-left: 4px solid var(--danger); color: #832f2c; border-radius: 5px; padding: 12px 15px; margin: 14px 0; font-size: 15px; font-weight: 650; line-height: 1.7; overflow-wrap: anywhere; }
+.res { text-align: left; padding: 23px 23px 24px; border: 1px solid var(--line); border-left: 5px solid var(--main); background: #fff; border-radius: 9px; margin: 0 0 18px; }
+.res.ok { border-left-color: var(--main); }
+.res.ng { border-left-color: var(--danger); background: var(--danger-soft); border-top-color: #f0d6d3; border-right-color: #f0d6d3; border-bottom-color: #f0d6d3; }
+.res .result-label { font-size: 13px; font-weight: 750; color: var(--main); margin-bottom: 5px; }
+.res.ng .result-label { color: var(--danger); }
+.res .big { font-size: 27px; }
+.res .result-note { font-size: 15px; color: var(--muted); margin-top: 2px; }
+.res.ng .result-note { color: #89463e; }
+.chk { padding: 0; margin: 0; list-style: none; }
+.chk li { display: flex; align-items: flex-start; gap: 12px; padding: 14px 2px; font-size: 15px; font-weight: 600; border-bottom: 1px solid #e4e9e5; }
+.chk li:first-child { padding-top: 3px; }
+.chk li:last-child { border: 0; padding-bottom: 3px; }
+.chk li::before { content: '確認'; background: var(--main-soft); color: var(--main-dark); padding: 2px 7px; font-size: 11px; font-weight: 750; border-radius: 4px; flex: 0 0 auto; }
+.chk li.f::before { content: '注意'; color: var(--danger); background: #fbe6e3; }
+.chk li.f { color: #8f3630; }
+.warnbox { background: var(--danger-soft); color: #86332d; border: 1px solid #edccc7; border-left: 4px solid var(--danger); border-radius: 7px; padding: 15px 18px; font-weight: 700; font-size: 16px; margin-bottom: 15px; }
+.status-choice.sel.ok { background: var(--main-soft); color: var(--main-dark); border-color: var(--main); }
+.status-choice.sel.ng { background: var(--danger-soft); color: #8f3630; border-color: var(--danger); }
+.ov { position: fixed; inset: 0; background: rgb(19 34 30 / 57%); display: flex; align-items: center; justify-content: center; padding: 18px; z-index: 20; }
+.ov .card { width: 100%; max-width: 440px; margin: 0; box-shadow: 0 18px 60px rgb(0 0 0 / 13%); }
+
+/* ---------- Status overview ---------- */
+.status-toolbar { display: grid; gap: 17px; }
+.status-date-label { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.status-date-field { max-width: 235px; }
+.status-tabs { display: flex; flex-wrap: wrap; gap: 7px; }
+.status-tabs button {
+  flex: 1 1 90px; min-height: 43px; margin: 0; padding: 9px 8px;
+  font-size: 14px; font-weight: 700; border-radius: 7px;
+}
+.status-tabs button.active { background: var(--main); color: #fff; border-color: var(--main); }
+.status-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
+.status-summary-item { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 15px 12px; min-width: 0; }
+.status-summary-item .status-count { display: block; font-size: 30px; line-height: 1.3; font-weight: 750; font-variant-numeric: tabular-nums; }
+.status-summary-item .status-count small { font-size: 12px; font-weight: 650; margin-left: 2px; }
+.status-summary-item .status-heading { display: block; color: var(--muted); font-size: 12px; font-weight: 700; margin-top: 3px; }
+.status-summary-item.completed .status-count { color: var(--main-dark); }
+.status-summary-item.alert .status-count { color: var(--danger); }
+.status-note { font-size: 13px; color: var(--muted); line-height: 1.7; margin: 6px 0 19px; }
+.status-group { padding: 0; overflow: hidden; }
+.status-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; background: #f7f9f7; padding: 14px 19px; border-bottom: 1px solid var(--line); }
+.status-group-head h3 { margin: 0; font-size: 17px; }
+.status-group-head small { color: var(--muted); font-size: 12px; font-weight: 650; }
+.status-entry { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 17px 19px; border-bottom: 1px solid var(--line); }
+.status-entry:last-child { border-bottom: 0; }
+.status-person { font-size: 16px; font-weight: 750; line-height: 1.4; }
+.status-room { font-size: 12px; color: var(--muted); font-weight: 500; margin-left: 8px; }
+.status-med { font-size: 14px; line-height: 1.5; margin-top: 6px; }
+.status-detail { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.status-result { display: flex; align-items: flex-end; flex-direction: column; gap: 5px; flex: 0 0 auto; }
+.status-pill { white-space: nowrap; border-radius: 5px; padding: 5px 10px; font-size: 12px; font-weight: 750; }
+.status-pill.done { background: var(--main-soft); color: var(--main-dark); }
+.status-pill.pending { background: #eff1f0; color: #56635c; }
+.status-pill.attention { background: #fbe7e4; color: var(--danger); }
+.status-record-time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.status-empty { background: #fff; border: 1px dashed #bdcac2; border-radius: 10px; padding: 26px 20px; text-align: center; color: var(--muted); font-size: 15px; }
+/* ---------- 訂正履歴 / 試作版のみ ---------- */
+.demo-global { padding: 7px 16px; background: #fcf7ed; border-bottom: 1px solid #e6d7b7; color: #745c31; font-size: 12px; font-weight: 700; text-align: center; }
+
+.demo-safety { background: #fcf7ed; border: 1px solid #dfcda6; border-left: 4px solid #ae8744; padding: 13px 16px; border-radius: 7px; margin: 12px 0 22px; font-size: 14px; line-height: 1.7; }
+.history-action { width: auto; min-height: 36px; display: inline-block; padding: 7px 10px; margin: 3px 4px 3px 0; border-radius: 6px; font-size: 13px; white-space: nowrap; }
+.history-revised { color: var(--main-dark); font-size: 12px; font-weight: 750; }
+.history-before { color: var(--muted); font-size: 12px; }
+.audit-items { margin: 15px 0; max-height: 42vh; overflow-y: auto; padding: 0 5px 0 0; }
+.audit-entry { padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.audit-entry:last-child { border-bottom: 0; }
+.audit-entry small { color: var(--muted); }
+.correction-modal { max-height: 88vh; overflow-y: auto; }
+.correction-modal label { display: block; font-size: 14px; font-weight: 700; margin: 12px 0 7px; }
+.correction-modal .lead { margin-bottom: 10px; }
+.correction-modal textarea { min-height: 105px; }
+/* ---------- Log ---------- */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; background: #fff; margin-bottom: 17px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 570px; }
+th { color: var(--muted); font-size: 12px; font-weight: 750; background: #f4f7f4; }
+th, td { border-bottom: 1px solid var(--line); padding: 12px 13px; text-align: left; vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+tr.bad { color: var(--danger); background: var(--danger-soft); }
+tr.bad td { font-weight: 650; }
+.history-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.history-tools label { display: block; color: var(--muted); font-size: 12px; font-weight: 650; margin-bottom: 6px; }
+
+@media (max-width: 480px) {
+  body { font-size: 16px; }
+  .header-inner { padding: 18px 17px 14px; }
+  .brand-name { font-size: 22px; }
+  #who { font-size: 12px; }
+  .steps { padding: 0 6px; }
+  .steps span { flex-direction: column; gap: 3px; font-size: 11px; padding: 9px 0 8px; }
+  .steps span::before { width: 19px; height: 19px; flex-basis: 19px; }
+  main { padding: 24px 16px 55px; }
+  .card { padding: 17px 16px; }
+  button.staff-choice, button.rc { padding: 16px; }
+  .big, .res .big { font-size: 23px; }
+  .row { flex-direction: column; gap: 0; }
+  .history-tools { grid-template-columns: 1fr; }
+  .status-summary { gap: 7px; }
+  .status-summary-item { padding: 13px 9px; }
+  .status-summary-item .status-count { font-size: 27px; }
+  .status-summary-item .status-heading { font-size: 11px; }
+  .status-entry { padding: 15px 14px; }
+  .status-group-head { padding: 13px 14px; }
+  .status-person { font-size: 15px; }
+  .status-med { font-size: 13px; }
+  .status-pill { padding: 5px 8px; }
+
+}
+@media (prefers-reduced-motion: reduce) { button { transition: none; } }
+
+/* Supabase移行版 */
+.login-shell {max-width:500px; margin:20px auto}
+.login-shell label {font-size:14px;font-weight:700;display:block;margin:12px 0 5px}
+.login-shell input {margin-bottom:8px}
+.info-panel {border:1px solid #d9e0db;background:#f7faf8;border-left:4px solid var(--main);border-radius:8px;padding:14px 16px;margin:13px 0;font-size:14px}
+.safety-panel {border:1px solid #ebd2aa;background:#fffaf0;border-left:4px solid #c59a4a;border-radius:8px;padding:13px 15px;margin:15px 0;font-size:14px}
+.toolbar {display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+.toolbar button {width:auto;flex:1;min-width:108px;margin:0;padding:10px 8px;min-height:46px;font-size:14px}
+.staff-roster {max-height:300px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--main) #e8ede8}
+.staff-roster::-webkit-scrollbar {width:9px}
+.staff-roster::-webkit-scrollbar-thumb {background:#80a69a;border-radius:9px}
+.staff-roster > div {padding:12px 17px;border-bottom:1px solid var(--line)}
+.staff-roster > div.current {color:var(--main-dark);background:var(--main-soft);font-weight:700}
+.muted {color:var(--muted)}
+.action-link {font-size:13px; min-height:38px; width:auto; padding:8px 12px; margin:4px 0}
+.err {white-space:pre-line}
+.small-link {display:inline-block; margin-top:8px;font-size:14px;color:var(--main)}
+.spin {display:inline-block;width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--main);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+@keyframes spin {to{transform:rotate(360deg)}}
+header .header-inner {align-items:center}
+#logout {min-height:34px;width:auto;margin:0;padding:6px 10px;font-size:12px}
+#who {max-width:170px;white-space:normal}
+@media (max-width:480px) {.header-inner{gap:9px} #who{font-size:11px} #logout{padding:6px}}
+</style></head><body>
+<header><div class="header-inner"><div class="brand"><span class="brand-label">服薬管理 / サーバー連携</span><span class="brand-name">服薬確認</span></div>
+<div style="display:flex;gap:8px;align-items:center"><div id="who"></div><button id="logout" type="button" hidden>ログアウト</button></div></div>
+<nav class="steps" id="steps" aria-label="服薬確認の進行状況"></nav></header>
+<main id="app"><div class="card">接続状態を確認しています。</div></main>
+<script>'use strict';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const SLOTS=['朝','昼','夕','就寝前'];
+const STATUSES=['服薬済み','未服薬','拒否'];
+const REASONS=['食事を摂れなかった','体調不良','眠っていた','嘔吐した','本人が飲みたくないと言った','その他'];
+const pad=n=>String(n).padStart(2,'0');
+const hm=iso=>{let d=new Date(iso);return d.toLocaleTimeString('ja-JP',{timeZone:'Asia/Tokyo',hour:'2-digit',minute:'2-digit',hour12:false})};
+function todayJST(){let p=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()); let o={};p.forEach(x=>o[x.type]=x.value);return `${o.year}-${o.month}-${o.day}`}
+function currentSlot(){const h=Number(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Tokyo',hour:'numeric',hourCycle:'h23'}).format(new Date()));return h>=5&&h<11?'朝':h>=11&&h<15?'昼':h>=15&&h<20?'夕':'就寝前'}
+let client=null, user=null, staff=null, screen='login', scanStream=null, scanRaf=0, scanBusy=false, scanToken=0;
+const C={staff:[],residents:[],medicines:[],prescriptions:[],logs:[],corrections:[],date:null};
+const A={slot:currentSlot(),resident:null,rx:null,check:null,status:null,reason:'',rsel:'',rfree:'',date:todayJST(),filter:'すべて',historyResident:'',historyDate:todayJST(),lastSaved:null,step:1};
+const repo={
+  getStaffList:()=>C.staff,
+  getStaff:id=>C.staff.find(x=>x.id===id),
+  getResidents:()=>C.residents,
+  getResident:id=>C.residents.find(x=>x.id===id),
+  getMedicine:id=>C.medicines.find(x=>x.id===id),
+  getPrescriptions:()=>C.prescriptions,
+  getPrescription:id=>C.prescriptions.find(x=>x.id===id),
+  getLogs:()=>C.logs,
+  findLog:(id,date,slot)=>C.logs.find(x=>x.prescriptionId===id&&x.date===date&&x.timeSlot===slot),
+  getCorrections:id=>C.corrections.filter(x=>x.logId===id).sort((a,b)=>a.revision-b.revision),
+  getCurrentStatus(log){const a=this.getCorrections(log.id);return a.length?a[a.length-1].toStatus:log.status}
+};
+function errorMessage(e){return (e&&e.message)?e.message:'通信エラーが発生しました'}
+function notify(message){const el=$('#error');if(el){el.innerHTML=`<div class="err" role="alert">${esc(message)}</div>`;}else alert(message)}
+function setLoading(message){$('#app').innerHTML=`<div class="card"><span class="spin" aria-hidden="true"></span> ${esc(message)}</div>`}
+function updateHeader(){
+  $('#who').textContent=staff?`担当：${staff.name}`:'';
+  $('#logout').hidden=!user;
+  const labels=screen==='flow'?['職員','利用者','薬QR','照合','記録']:[];
+  $('#steps').innerHTML=labels.length?labels.map((t,i)=>`<span class="${A.step===i+1?'on':''}" data-number="${i+1}">${t}</span>`).join(''):
+    `<span class="on history-step">${screen==='status'?'服薬状況一覧':screen==='history'?'服薬履歴':screen==='login'?'ログイン':screen==='done'?'記録完了':'確認'}</span>`;
+}
+function renderLogin(message=''){
+  screen='login';staff=null;user=null;updateHeader();
+  $('#app').innerHTML=`<div class="login-shell"><span class="section-label">職員専用</span><h2>ログイン</h2>
+  <p class="lead">職員ごとのメールアドレスとパスワードでログインしてください。</p>
+  <div class="safety-panel">安全検証中の接続版です。実在する利用者・処方・服薬記録は、運用承認が終わるまで登録しないでください。</div>
+  <form class="card" id="login-form"><label for="email">メールアドレス</label><input type="email" id="email" required autocomplete="username">
+  <label for="password">パスワード</label><input type="password" id="password" required autocomplete="current-password">
+  <button class="pri" type="submit" id="login-button">ログイン</button><div id="error" role="alert"></div></form>
+  ${message?`<div class="err">${esc(message)}</div>`:''}</div>`;
+  $('#login-form').onsubmit=async e=>{
+    e.preventDefault();let b=$('#login-button');b.disabled=true;b.textContent='確認中…';
+    const {error}=await client.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});
+    if(error){notify('ログインできませんでした。メールアドレスとパスワードを確認してください。');b.disabled=false;b.textContent='ログイン';return}
+    await boot();
+  };
+}
+function renderBlocked(message){screen='blocked';updateHeader();$('#app').innerHTML=`<h2>利用権限を確認できません</h2><div class="err">${esc(message)}</div><p class="lead">管理者に職員アカウントの紐付けと有効状態を確認してもらってください。</p><button id="retry">再確認する</button>`;$('#retry').onclick=boot}
+async function paginate(table,fields,decorate){
+  let all=[];const PAGE=400;
+  for(let from=0;from<10000;from+=PAGE){
+    let query=decorate(client.from(table).select(fields)).range(from,from+PAGE-1);
+    let {data,error}=await query;
+    if(error)throw error;
+    all.push(...(data||[]));
+    if((data||[]).length<PAGE)return all;
+  }
+  throw new Error('データが多すぎるため表示を中断しました。ページ分割が必要です。');
+}
+async function loadMaster(){
+  const [staffRows,resRows,medRows,rxRows]=await Promise.all([
+    paginate('staff','id,name,role,is_active,auth_user_id',q=>q.order('id')),
+    paginate('residents','id,name,kana,room,is_active',q=>q.order('id')),
+    paginate('medicines','id,name,shape,note,strength,is_active',q=>q.order('id')),
+    paginate('prescriptions','id,resident_id,medicine_id,dose,time_slot,start_date,end_date,is_active',q=>q.order('id'))
+  ]);
+  C.staff=staffRows; C.residents=resRows; C.medicines=medRows;
+  C.prescriptions=rxRows.map(x=>({id:x.id,residentId:x.resident_id,medicineId:x.medicine_id,
+    dose:x.dose,timeSlot:x.time_slot,startDate:x.start_date,endDate:x.end_date,isActive:x.is_active}));
+}
+async function loadLogs(date){
+  const logs=await paginate('medication_logs','id,prescription_id,staff_id,date,time_slot,status,reason,created_at',q=>q.eq('date',date).order('created_at',{ascending:false}));
+  const ids=logs.map(l=>l.id),corr=[];
+  for(let i=0;i<ids.length;i+=40){
+    const chunk=ids.slice(i,i+40);
+    const result=await paginate('medication_log_corrections','id,revision,medication_log_id,previous_status,new_status,correction_reason,corrected_by_staff_id,corrected_at',q=>q.in('medication_log_id',chunk).order('revision'));
+    corr.push(...result);
+  }
+  C.logs=logs.map(l=>{let rx=repo.getPrescription(l.prescription_id);return {id:l.id,prescriptionId:l.prescription_id,staffId:l.staff_id,date:l.date,timeSlot:l.time_slot,status:l.status,reason:l.reason,createdAt:l.created_at,residentId:rx?.residentId,medicineId:rx?.medicineId}});
+  C.corrections=corr.map(c=>({id:c.id,revision:c.revision,logId:c.medication_log_id,fromStatus:c.previous_status,toStatus:c.new_status,reason:c.correction_reason,staffId:c.corrected_by_staff_id,createdAt:c.corrected_at}));
+  C.date=date;
+}
+async function boot(){
+  stopScan();setLoading('ログイン状態と利用権限を確認しています');
+  try{
+    const {data:{user:current},error}=await client.auth.getUser();if(error)throw error;
+    if(!current){renderLogin();return}
+    user=current;
+    const res=await client.from('staff').select('id,name,role,is_active,auth_user_id').eq('auth_user_id',user.id).eq('is_active',true).maybeSingle();
+    if(res.error)throw res.error;
+    if(!res.data){staff=null;renderBlocked('ログインアカウントに有効な職員情報が関連付けられていません。');return}
+    staff=res.data;
+    await loadMaster(); await loadLogs(todayJST());
+    A.step=1;screen='flow';renderHome();
+  }catch(e){renderBlocked('データの読み込みに失敗しました。通信状態、SQL設定と権限を確認してください。\n'+errorMessage(e))}
+}
+function stopScan(){++scanToken;cancelAnimationFrame(scanRaf);scanRaf=0;if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}const v=$('#video');if(v)v.srcObject=null}
+function home(){stopScan();screen='flow';A.step=1;A.slot=currentSlot();A.resident=null;A.rx=null;renderHome()}
+function renderHome(){screen='flow';A.step=1;updateHeader();
+  $('#app').innerHTML=`<span class="section-label">STEP 01 / 職員</span><h2>担当職員を確認</h2>
+  <p class="lead">職員はログイン情報で確定しています。ほかの職員へ切り替える場合はログアウトしてください。</p>
+  <div class="staff-field"><label class="staff-field-label">現在の担当職員</label>
+  <div class="card" style="margin-bottom:8px"><div class="big" style="font-size:21px">${esc(staff.name)}</div><div class="hint">職員ID：${esc(staff.id)} ／ ${staff.role==='admin'?'管理者':'一般職員'}</div></div>
+  <button id="staff-toggle" type="button" class="staff-dropdown-toggle" aria-expanded="false" aria-controls="staff-roster"><span>職員一覧を確認する（閲覧のみ）</span><span class="staff-chevron" aria-hidden="true"></span></button>
+  <div id="staff-roster" class="staff-dropdown-list staff-roster" hidden>${C.staff.filter(x=>x.is_active).map(x=>`<div class="${x.id===staff.id?'current':''}">${esc(x.name)}${x.id===staff.id?'（ログイン中）':''}</div>`).join('')}</div></div>
+  <div class="card"><h3>服薬の時間帯</h3><div class="grid">${SLOTS.map(t=>`<button type="button" data-slot="${t}" class="${A.slot===t?'sel':''}">${t}</button>`).join('')}</div>
+  <p class="hint">時間帯は確認して選んでください。サーバー側でも処方の時間帯と照合します。</p></div>
+  <button class="pri" id="next">利用者選択へ進む</button>
+  <button id="show-status">服薬状況一覧を見る</button><button id="show-history">服薬履歴を見る</button>`;
+  $('#staff-toggle').onclick=()=>{const b=$('#staff-toggle'),list=$('#staff-roster');list.hidden=!list.hidden;b.setAttribute('aria-expanded',String(!list.hidden))};
+  document.querySelectorAll('[data-slot]').forEach(b=>b.onclick=()=>{A.slot=b.dataset.slot;renderHome()});
+  $('#next').onclick=renderResidents;$('#show-status').onclick=()=>showStatus();$('#show-history').onclick=()=>showHistory();
+}
+function renderResidents(){screen='flow';A.step=2;updateHeader();A.resident=null;A.rx=null;
+  const residents=C.residents.filter(x=>x.is_active);
+  $('#app').innerHTML=`<span class="section-label">STEP 02 / 利用者</span><h2>服薬する方を選択</h2>
+  <p class="lead">利用者の氏名・部屋番号を確認してください。</p>
+  ${residents.map(r=>`<button class="rc" data-res="${esc(r.id)}"><span><span class="resident-name">${esc(r.name)}</span><span class="resident-info">${esc(r.kana||'')} ／ ${esc(r.room||'—')}号室</span></span></button>`).join('')||'<div class="info-panel">利用者が登録されていません。</div>'}
+  <button id="back">職員確認に戻る</button>`;
+  document.querySelectorAll('[data-res]').forEach(b=>b.onclick=()=>{A.resident=repo.getResident(b.dataset.res);renderConfirmResident()});$('#back').onclick=home;
+}
+function renderConfirmResident(){A.step=2;updateHeader();const r=A.resident;
+  $('#app').innerHTML=`<span class="section-label">STEP 02 / 本人確認</span><h2>ご本人の確認</h2>
+  <div class="card person-card"><div class="big">${esc(r.name)}</div><p class="muted">${esc(r.kana||'')}</p><div class="person-room">${esc(r.room||'—')}号室</div></div>
+  <div class="safety-panel">この移行版では本人確認用写真をまだ連携していません。氏名・部屋番号だけで本人確認を完了させず、施設の正式な手順で確認してください。</div>
+  <button id="yes" class="pri">別の手順で本人を確認した</button><button id="no">選び直す</button>`;
+  $('#yes').onclick=renderScan;$('#no').onclick=renderResidents;
+}
+function renderScan(){screen='flow';A.step=3;A.status=null;A.rsel='';A.rfree='';updateHeader();stopScan();
+  $('#app').innerHTML=`<span class="section-label">STEP 03 / 薬袋QR</span><h2>薬袋のQRを読み取る</h2>
+  <div class="card"><b>${esc(A.resident.name)}</b> ／ ${esc(A.slot)}</div>
+  <div class="qrguide">QRに登録された<strong>処方ID</strong>を読み取ります。番号はSupabaseの服薬予定テーブルに登録したIDと一致する必要があります。</div>
+  <div id="cam" style="display:none"><video id="video" autoplay playsinline muted></video><button id="stop">カメラを停止</button></div>
+  <div id="error" role="alert"></div>
+  <button class="pri" id="start">カメラを起動する</button>
+  <div class="card"><h3>写真からQRを読み取る</h3><input type="file" id="qrphoto" accept="image/*"></div>
+  <div class="card"><h3>処方IDを手入力する</h3><input id="code" autocomplete="off" placeholder="例：P001"><button id="manual">番号を照合する</button></div>
+  <button id="back">利用者選択へ戻る</button><canvas id="cv" hidden></canvas>`;
+  $('#start').onclick=startScan;$('#stop').onclick=()=>{stopScan();$('#cam').style.display='none';$('#start').style.display=''};
+  $('#manual').onclick=()=>onCode($('#code').value);$('#qrphoto').onchange=photoScan;$('#back').onclick=renderResidents;
+}
+async function decodeQR(source,canvas){
+  if('BarcodeDetector' in window){try{const detector=new BarcodeDetector({formats:['qr_code']});const result=await detector.detect(source);if(result.length)return result[0].rawValue}catch(e){}}
+  if(typeof jsQR!=='function')return null;
+  const w=source.videoWidth||source.naturalWidth||source.width,h=source.videoHeight||source.naturalHeight||source.height;if(!w||!h)return null;
+  const k=Math.min(1,1400/Math.max(w,h));canvas.width=Math.round(w*k);canvas.height=Math.round(h*k);
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(source,0,0,canvas.width,canvas.height);
+  const q=jsQR(ctx.getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height,{inversionAttempts:'attemptBoth'});
+  return q?.data||null;
+}
+async function startScan(){
+  if(scanStream)return;
+  if(!navigator.mediaDevices?.getUserMedia){notify('カメラにはHTTPSとブラウザのアクセス許可が必要です。');return}
+  if(!('BarcodeDetector' in window)&&typeof jsQR!=='function'){notify('QR読み取りライブラリを読み込めません。通信を確認してください。');return}
+  const token=++scanToken;let videoStream=null;
+  try{
+    try{videoStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false})}catch(e){if(e.name!=='OverconstrainedError'&&e.name!=='NotFoundError')throw e;videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false})}
+    if(token!==scanToken){videoStream.getTracks().forEach(t=>t.stop());return}
+    scanStream=videoStream;const v=$('#video');if(!v){stopScan();return}
+    v.srcObject=scanStream;$('#cam').style.display='block';$('#start').style.display='none';await v.play();
+    if(token!==scanToken)return;
+    const loop=async()=>{
+      if(token!==scanToken||!scanStream)return;
+      if(!scanBusy&&v.readyState>=2){scanBusy=true;try{const raw=await decodeQR(v,$('#cv'));if(raw&&scanStream&&token===scanToken){stopScan();await onCode(raw);return}}catch(e){}finally{scanBusy=false}}
+      if(token===scanToken)scanRaf=requestAnimationFrame(loop);
+    };scanRaf=requestAnimationFrame(loop);
+  }catch(e){if(videoStream)videoStream.getTracks().forEach(t=>t.stop());notify('カメラを起動できません。ブラウザの権限を確認してください。 '+errorMessage(e))}
+}
+async function photoScan(e){const file=e.target.files?.[0];if(!file)return;stopScan();try{
+  const im=new Image(),url=URL.createObjectURL(file);
+  try{await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=reject;im.src=url})}finally{URL.revokeObjectURL(url)}
+  const data=await decodeQR(im,$('#cv'));if(!data){notify('写真にQRが見つかりませんでした。');return}await onCode(data);
+}catch(e){notify('画像を読み取れませんでした。'+errorMessage(e))}}
+async function onCode(raw){stopScan();const code=String(raw||'').trim();if(!code){notify('処方IDを入力してください。');return}
+  setLoading('最新の処方と記録を確認しています');
+  try{await loadMaster();await loadLogs(todayJST());
+    const rx=repo.getPrescription(code);
+    if(!rx){renderScan();notify('この処方IDは登録されていません。読み取った内容：'+code.slice(0,60));return}
+    A.rx=rx;A.check=verify(rx);renderVerify();
+  }catch(e){renderScan();notify('サーバーに接続できないため照合を中止しました。'+errorMessage(e))}
+}
+function verify(rx){
+  const now=todayJST(),owner=repo.getResident(rx.residentId),med=repo.getMedicine(rx.medicineId);
+  let duplicate=repo.findLog(rx.id,now,rx.timeSlot);
+  const checks=[
+    [!!owner&&owner.id===A.resident.id,'本人の薬です','登録された利用者と一致しません'],
+    [rx.timeSlot===A.slot,'時間帯が一致しました','処方の時間帯は '+rx.timeSlot+' です'],
+    [!!owner?.is_active&&!!med?.is_active&&rx.isActive===true,'処方・利用者・薬剤は有効です','無効化された処方・利用者・薬剤です'],
+    [!!rx.endDate&&rx.startDate<=now&&now<=rx.endDate,'処方期間内です','処方の開始日・終了日を確認してください（終了日未設定も停止）'],
+    [!duplicate,'同じ処方の記録はありません','すでに本日の記録があります']
+  ];
+  return {ok:checks.every(x=>x[0]),checks,med,duplicate};
+}
+function renderVerify(){screen='flow';A.step=4;updateHeader();const c=A.check,rx=A.rx;
+  $('#app').innerHTML=`<span class="section-label">STEP 04 / 照合</span>
+  <div class="res ${c.ok?'ok':'ng'}"><div class="result-label">${c.ok?'照合結果':'照合エラー'}</div>
+  <div class="big">${c.ok?'内容が一致しました':'薬を渡さないでください'}</div>
+  <div class="result-note">${c.ok?'サーバーへ保存する際も再検証します。':'相違または重複を確認してください。'}</div></div>
+  <div class="card"><h3>処方情報</h3><div class="big" style="font-size:20px">${esc(c.med?.name||'登録なし')}</div>
+  <div>用量：${esc(rx.dose)} ／ 時間帯：${esc(rx.timeSlot)}</div><p class="hint">${esc(c.med?.shape||'')}　${esc(c.med?.note||'')}</p></div>
+  <div class="card"><h3>照合項目</h3><ul class="chk">${c.checks.map(x=>`<li class="${x[0]?'p':'f'}">${esc(x[x[0]?1:2])}</li>`).join('')}</ul></div>
+  ${c.ok?'<button class="pri" id="next">服薬結果の記録に進む</button>':'<div class="err">このQRの薬を渡さず、施設の確認手順に従ってください。</div>'}
+  <button id="back">QRを読み直す</button>`;
+  if(c.ok)$('#next').onclick=renderRecord;$('#back').onclick=renderScan;
+}
+function renderRecord(){screen='flow';A.step=5;updateHeader();
+  $('#app').innerHTML=`<span class="section-label">STEP 05 / 記録</span><h2>服薬結果を記録</h2>
+  <div class="card"><b>${esc(A.resident.name)}</b> ／ ${esc(A.check.med.name)} ／ ${esc(A.rx.dose)} ／ ${esc(A.slot)}</div>
+  <p class="lead">実際の服薬を確認してから結果を選んでください。</p>
+  ${STATUSES.map(s=>`<button class="status-choice ${A.status===s?'sel':''}" data-status="${s}">${s}</button>`).join('')}
+  ${A.status&&A.status!=='服薬済み'?`<div class="card"><label for="reason">理由（必須）</label>
+  <select id="reason"><option value="">選択してください</option>${REASONS.map(t=>`<option ${A.rsel===t?'selected':''}>${t}</option>`).join('')}</select>
+  <textarea id="details" maxlength="1000" placeholder="補足（任意）">${esc(A.rfree)}</textarea></div>`:''}
+  <div id="error"></div><button class="pri" id="save" ${A.status?'':'disabled'}>サーバーに記録する</button>
+  <button id="back">QR照合に戻る</button>`;
+  document.querySelectorAll('[data-status]').forEach(b=>b.onclick=()=>{A.status=b.dataset.status;renderRecord()});
+  if($('#reason'))$('#reason').onchange=e=>A.rsel=e.target.value;
+  if($('#details'))$('#details').oninput=e=>A.rfree=e.target.value;
+  $('#back').onclick=renderVerify;$('#save').onclick=saveRecord;
+}
+async function saveRecord(){
+  let reason=A.status==='服薬済み'?null:[A.rsel,A.rfree.trim()].filter(Boolean).join('：');
+  if(A.status!=='服薬済み'&&!reason){notify('未服薬・拒否は理由が必要です。');return}
+  if(!confirm(`${A.resident.name} ／ ${A.check.med.name} ／ ${A.status}\nこの結果をサーバーに記録しますか？`))return;
+  const b=$('#save');b.disabled=true;b.textContent='保存中…';
+  try{
+    const {data,error}=await client.rpc('medcheck_record_medication',{
+      p_prescription_id:A.rx.id,p_resident_id:A.resident.id,p_selected_slot:A.slot,p_status:A.status,p_reason:reason
+    });if(error)throw error;
+    if(data?.result==='duplicate'){
+      await loadLogs(todayJST());A.check=verify(A.rx);renderVerify();notify('二重登録を防止しました。すでに記録済みです。服薬履歴を確認してください。');return;
+    }
+    if(data?.result!=='saved')throw new Error('保存結果を確認できませんでした。履歴で確認してください。');
+    A.lastSaved={status:A.status,reason,id:data.log_id};
+    try{await loadLogs(todayJST())}catch(e){}
+    renderDone();
+  }catch(e){notify('保存が確認できませんでした。再度保存する前に必ず履歴を確認してください。\n'+errorMessage(e));b.disabled=false;b.textContent='サーバーに記録する'}
+}
+function renderDone(){screen='done';updateHeader();$('#app').innerHTML=`<div class="res ok"><div class="result-label">保存完了</div><div class="big">服薬記録を保存しました</div><div class="result-note">サーバーから保存確認を受け取りました。</div></div>
+  <div class="card"><b>${esc(A.resident.name)}</b><p>${esc(A.check.med.name)} ／ ${esc(A.rx.dose)} ／ ${esc(A.slot)}</p>
+  結果：<b>${esc(A.lastSaved.status)}</b><br>担当：${esc(staff.name)}</div>
+  <button class="pri" id="same">同じ利用者の別の薬を確認する</button>
+  <button id="different">別の利用者を確認する</button><button id="status">服薬状況一覧を見る</button><button id="history">履歴を見る</button>`;
+  $('#same').onclick=()=>{A.status=null;A.rsel='';A.rfree='';renderScan()};
+  $('#different').onclick=()=>{A.status=null;A.rsel='';A.rfree='';renderResidents()};
+  $('#status').onclick=()=>showStatus();$('#history').onclick=()=>showHistory();
+}
+async function showStatus(date=A.date,filter=A.filter){stopScan();screen='status';A.date=date;A.filter=filter;updateHeader();setLoading('服薬状況をサーバーから読み込んでいます');
+  try{await loadMaster();await loadLogs(date);renderStatus()}catch(e){renderLoadFail('服薬状況を読み込めませんでした。'+errorMessage(e),()=>showStatus(date,filter))}
+}
+function renderLoadFail(message,retry){$('#app').innerHTML=`<div class="err">${esc(message)}</div><button id="retry">再試行</button><button id="back">確認画面に戻る</button>`;$('#retry').onclick=retry;$('#back').onclick=home}
+function renderStatus(){screen='status';updateHeader();const day=A.date,slot=A.filter;
+  const rows=C.prescriptions.filter(rx=>rx.isActive&&rx.startDate<=day&&!!rx.endDate&&day<=rx.endDate&&
+    repo.getResident(rx.residentId)?.is_active&&repo.getMedicine(rx.medicineId)?.is_active&&(slot==='すべて'||rx.timeSlot===slot))
+    .map(rx=>{const log=repo.findLog(rx.id,day,rx.timeSlot);return {rx,log,status:log?repo.getCurrentStatus(log):'未確認'}})
+    .sort((a,b)=>SLOTS.indexOf(a.rx.timeSlot)-SLOTS.indexOf(b.rx.timeSlot)||a.rx.residentId.localeCompare(b.rx.residentId));
+  const done=rows.filter(x=>x.status==='服薬済み').length,pending=rows.filter(x=>x.status==='未確認').length,attention=rows.length-done-pending;
+  $('#app').innerHTML=`<span class="section-label">サーバー共有 / 一覧</span><h2>服薬状況一覧</h2><p class="lead">パソコン・スマホで同じ記録を確認できます。「未確認」は未記録を意味します。</p>
+  <div class="card status-toolbar"><div><label class="status-date-label" for="date">日付</label><input type="date" id="date" value="${esc(day)}" class="status-date-field"></div>
+  <div><span class="status-date-label">時間帯</span><div class="status-tabs">${['すべて',...SLOTS].map(t=>`<button data-slot="${t}" class="${t===slot?'active':''}">${t}</button>`).join('')}</div></div></div>
+  <div class="status-summary"><div class="status-summary-item completed"><span class="status-count">${done}件</span><span class="status-heading">服薬済み</span></div>
+  <div class="status-summary-item"><span class="status-count">${pending}件</span><span class="status-heading">未確認</span></div>
+  <div class="status-summary-item alert"><span class="status-count">${attention}件</span><span class="status-heading">未服薬・拒否</span></div></div>
+  <div class="info-panel">${esc(day)} ／ 対象${rows.length}処方。最新の情報を見るときは「更新」を押してください。終了日が未設定の処方は表示しません。</div>
+  ${SLOTS.filter(t=>slot==='すべて'||slot===t).map(t=>{let list=rows.filter(x=>x.rx.timeSlot===t);return list.length?`<section class="card status-group"><div class="status-group-head"><h3>${t}</h3><small>${list.length}件</small></div>
+  ${list.map(x=>`<div class="status-entry"><div class="status-entry-info"><div class="status-person">${esc(repo.getResident(x.rx.residentId)?.name)}<span class="status-room">${esc(repo.getResident(x.rx.residentId)?.room||'—')}号室</span></div>
+  <div class="status-med">${esc(repo.getMedicine(x.rx.medicineId)?.name)} ／ ${esc(x.rx.dose)}</div>
+  </div><div class="status-result"><span class="status-pill ${x.status==='服薬済み'?'done':x.status==='未確認'?'pending':'attention'}">${esc(x.status)}</span>
+  ${x.log?`<span class="status-record-time">${hm(x.log.createdAt)}</span>`:''}</div></div>`).join('')}</section>`:''}).join('')||'<div class="status-empty">対象の処方はありません。</div>'}
+  <button class="pri" id="refresh">最新の情報に更新</button><button id="history">服薬履歴を見る</button><button id="back">確認画面に戻る</button>`;
+  $('#date').onchange=e=>{if(e.target.value)showStatus(e.target.value,slot)};
+  document.querySelectorAll('[data-slot]').forEach(b=>b.onclick=()=>showStatus(day,b.dataset.slot));
+  $('#refresh').onclick=()=>showStatus(day,slot);$('#history').onclick=()=>showHistory(day);$('#back').onclick=home;
+}
+async function showHistory(date=A.historyDate){stopScan();screen='history';A.historyDate=date;updateHeader();setLoading('服薬履歴を読み込んでいます');
+  try{await loadMaster();await loadLogs(date);renderHistory()}catch(e){renderLoadFail('服薬履歴を読み込めませんでした。'+errorMessage(e),()=>showHistory(date))}
+}
+function renderHistory(){screen='history';updateHeader();const logs=C.logs.filter(l=>!A.historyResident||l.residentId===A.historyResident);
+  $('#app').innerHTML=`<span class="section-label">サーバー共有 / 履歴</span><h2>服薬履歴・訂正履歴</h2>
+  <p class="lead">原記録は残し、訂正は別の履歴として追記します。訂正できるのは管理者だけです。</p>
+  <div class="card history-tools"><div><label for="hist-date">日付</label><input id="hist-date" type="date" value="${esc(A.historyDate)}"></div>
+  <div><label for="hist-person">利用者</label><select id="hist-person"><option value="">全員</option>${C.residents.map(r=>`<option value="${esc(r.id)}" ${A.historyResident===r.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select></div></div>
+  <div class="table-wrap"><table><tr><th>時刻</th><th>利用者</th><th>薬・時間帯</th><th>現在の結果</th><th>担当</th><th>操作</th></tr>
+  ${logs.map(l=>{const changes=repo.getCorrections(l.id),now=repo.getCurrentStatus(l);
+    return `<tr class="${now!=='服薬済み'?'bad':''}"><td>${hm(l.createdAt)}</td>
+    <td>${esc(repo.getResident(l.residentId)?.name||'不明')}</td>
+    <td>${esc(repo.getMedicine(l.medicineId)?.name||'不明')}<br>${esc(l.timeSlot)}</td>
+    <td>${esc(now)}${changes.length?`<br><small>訂正${changes.length}回</small>`:''}</td>
+    <td>${esc(repo.getStaff(l.staffId)?.name||l.staffId)}</td><td><button class="action-link" data-audit="${esc(l.id)}">変更履歴</button>${staff.role==='admin'?`<button class="action-link" data-correct="${esc(l.id)}">訂正する</button>`:''}</td></tr>`}).join('')||'<tr><td colspan="6">記録がありません</td></tr>'}</table></div>
+  ${staff.role==='admin'?'<button id="csv">この日の履歴CSVを出力（管理者のみ）</button>':''}
+  <button class="pri" id="refresh">最新の情報に更新</button><button id="status">服薬状況を見る</button><button id="back">確認画面に戻る</button>`;
+  $('#hist-date').onchange=e=>{if(e.target.value)showHistory(e.target.value)};
+  $('#hist-person').onchange=e=>{A.historyResident=e.target.value;renderHistory()};
+  document.querySelectorAll('[data-audit]').forEach(b=>b.onclick=()=>showAudit(b.dataset.audit));
+  document.querySelectorAll('[data-correct]').forEach(b=>b.onclick=()=>showCorrection(b.dataset.correct));
+  if($('#csv'))$('#csv').onclick=()=>exportCsv(logs);
+  $('#refresh').onclick=()=>showHistory(A.historyDate);$('#status').onclick=()=>showStatus();$('#back').onclick=home;
+}
+function closeModal(d){d.remove()}
+function modal(html){const d=document.createElement('div');d.className='ov';d.innerHTML=`<div class="card correction-modal">${html}</div>`;document.body.appendChild(d);return d}
+function showAudit(logId){const log=C.logs.find(l=>l.id===logId);if(!log)return;const changes=repo.getCorrections(logId);
+  const d=modal(`<h2 style="font-size:22px">記録の変更履歴</h2><div class="audit-items">
+  <div class="audit-entry"><b>初回：${esc(log.status)}</b><br><small>${esc(log.createdAt)} ／ ${esc(repo.getStaff(log.staffId)?.name||log.staffId)}</small>${log.reason?`<p>${esc(log.reason)}</p>`:''}</div>
+  ${changes.map(c=>`<div class="audit-entry"><b>${esc(c.fromStatus)} → ${esc(c.toStatus)}</b><br><small>${esc(c.createdAt)} ／ ${esc(repo.getStaff(c.staffId)?.name||c.staffId)}</small><p>理由：${esc(c.reason)}</p></div>`).join('')}</div>
+  <button class="pri" id="close">閉じる</button>`);d.querySelector('#close').onclick=()=>closeModal(d);
+}
+function showCorrection(logId){if(staff.role!=='admin')return;const log=C.logs.find(l=>l.id===logId);if(!log)return;const expected=repo.getCurrentStatus(log);
+  const d=modal(`<h2 style="font-size:22px">服薬記録を訂正</h2><p class="lead">原記録を変更せず訂正履歴を追加します。管理者ログインが必要です。</p>
+  <div class="info-panel">初回：${esc(log.status)} ／ 現在：${esc(expected)}<br>訂正担当：${esc(staff.name)}</div>
+  <label for="new-status">訂正後の結果</label><select id="new-status">${STATUSES.map(x=>`<option value="${x}" ${x===expected?'selected':''}>${x}</option>`).join('')}</select>
+  <label for="corr-reason">訂正理由（5文字以上）</label><textarea id="corr-reason" maxlength="1000" placeholder="理由を具体的に入力してください"></textarea>
+  <div id="modal-error"></div><div class="row"><button id="cancel">戻る</button><button class="pri" id="commit">訂正を保存</button></div>`);
+  d.querySelector('#cancel').onclick=()=>closeModal(d);
+  d.querySelector('#commit').onclick=async()=>{
+    const status=d.querySelector('#new-status').value,reason=d.querySelector('#corr-reason').value.trim();
+    if(status===expected||reason.length<5){d.querySelector('#modal-error').innerHTML='<div class="err">結果を変更し、5文字以上の理由を入力してください。</div>';return}
+    if(!confirm('訂正履歴を追加しますか？原記録は変更されません。'))return;
+    const btn=d.querySelector('#commit');btn.disabled=true;
+    try{
+      const {data,error}=await client.rpc('medcheck_correct_medication',{p_log_id:logId,p_expected_status:expected,p_new_status:status,p_reason:reason});
+      if(error)throw error;
+      if(data?.result!=='corrected')throw new Error(data?.message||'訂正を保存できませんでした。');
+      closeModal(d);await showHistory(A.historyDate);
+    }catch(e){d.querySelector('#modal-error').innerHTML=`<div class="err">${esc('訂正が確認できませんでした。再度実行する前に履歴を確認してください。 '+errorMessage(e))}</div>`;btn.disabled=false}
+  };
+}
+function exportCsv(logs){
+  const cell=x=>{let str=String(x??'');if(/^[\s]*[=+@-]/.test(str))str="'"+str;return '"'+str.replace(/"/g,'""')+'"'};
+  const rows=[['日付','時刻','利用者','薬剤','処方ID','時間帯','初回結果','現在の結果','担当者','訂正回数']].concat(logs.map(l=>[
+    l.date,hm(l.createdAt),repo.getResident(l.residentId)?.name,repo.getMedicine(l.medicineId)?.name,l.prescriptionId,l.timeSlot,l.status,repo.getCurrentStatus(l),repo.getStaff(l.staffId)?.name,repo.getCorrections(l.id).length
+  ]));
+  const blob=new Blob(['\ufeff'+rows.map(row=>row.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='服薬履歴_'+A.historyDate+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function init(){
+  const config=window.MEDCHECK_CONFIG||{};
+  if(!config.url||config.url.includes('YOUR-PROJECT')||!config.publishableKey||config.publishableKey.includes('PASTE_')){
+    screen='blocked';updateHeader();$('#app').innerHTML=`<h2>Supabase接続設定が未完了です</h2><div class="info-panel">config.jsにProject URLとPublishable keyを入力してください。secret key・service_roleキーやデータベースのパスワードは絶対に入れないでください。</div>`;return;
+  }
+  if(!window.supabase?.createClient){screen='blocked';updateHeader();$('#app').innerHTML='<div class="err">Supabaseライブラリを読み込めません。ネットワーク接続を確認してください。</div>';return}
+  client=window.supabase.createClient(config.url,config.publishableKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  $('#logout').onclick=async()=>{stopScan();try{await client.auth.signOut()}finally{user=null;staff=null;C.staff=[];C.residents=[];C.medicines=[];C.prescriptions=[];C.logs=[];C.corrections=[];renderLogin()}};
+  client.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){user=null;staff=null;renderLogin()}});
+  await boot();
+}
+init();
+</script></body></html>
