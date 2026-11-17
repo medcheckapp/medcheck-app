@@ -384,6 +384,25 @@ header .header-inner {align-items:center}
 #logout {min-height:34px;width:auto;margin:0;padding:6px 10px;font-size:12px}
 #who {max-width:170px;white-space:normal}
 @media (max-width:480px) {.header-inner{gap:9px} #who{font-size:11px} #logout{padding:6px}}
+
+/* 管理者向け・スマホ/PC共通の登録画面 */
+.admin-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; margin:13px 0 20px; }
+.admin-tabs button { margin:0; padding:10px 3px; min-height:47px; font-size:14px; }
+.admin-tabs button.active { color:#fff; background:var(--main); border-color:var(--main); }
+.admin-form label { display:block; font-size:14px; font-weight:700; margin:13px 0 6px; }
+.admin-form label:first-child { margin-top:0; }
+.admin-form input, .admin-form select, .admin-form textarea { width:100%; }
+.admin-form .mini { font-size:12px; color:var(--muted); margin:2px 0 11px; }
+.admin-list { display:grid; gap:10px; margin:14px 0 23px; }
+.admin-entry { background:var(--paper); border:1px solid var(--line); border-radius:9px; padding:14px 15px; }
+.admin-entry.off { background:#f7f8f7; opacity:.78; }
+.admin-entry b { overflow-wrap:anywhere; }
+.admin-entry .admin-sub { font-size:13px; color:var(--muted); overflow-wrap:anywhere; }
+.admin-entry button { width:auto; min-height:38px; padding:7px 13px; font-size:13px; margin:10px 0 0; }
+.admin-state { font-size:12px; color:var(--main-dark); font-weight:700; }
+.admin-entry.off .admin-state { color:var(--muted); }
+.admin-notice { font-size:13px; color:var(--muted); }
+@media(max-width:480px){.admin-tabs button{font-size:13px}}
 </style></head><body>
 <header><div class="header-inner"><div class="brand"><span class="brand-label">服薬管理 / サーバー連携</span><span class="brand-name">服薬確認</span></div>
 <div style="display:flex;gap:8px;align-items:center"><div id="who"></div><button id="logout" type="button" hidden>ログアウト</button></div></div>
@@ -444,7 +463,7 @@ function updateHeader(){
   $('#logout').hidden=!user;
   const labels=screen==='flow'?['職員','利用者','薬QR','照合','記録']:[];
   $('#steps').innerHTML=labels.length?labels.map((t,i)=>`<span class="${A.step===i+1?'on':''}" data-number="${i+1}">${t}</span>`).join(''):
-    `<span class="on history-step">${screen==='status'?'服薬状況一覧':screen==='history'?'服薬履歴':screen==='login'?'ログイン':screen==='done'?'記録完了':'確認'}</span>`;
+    `<span class="on history-step">${screen==='status'?'服薬状況一覧':screen==='history'?'服薬履歴':screen==='login'?'ログイン':screen==='done'?'記録完了':screen==='admin'?'管理者メニュー':'確認'}</span>`;
 }
 function renderLogin(message=''){
   screen='login';staff=null;user=null;updateHeader();
@@ -543,10 +562,142 @@ function renderHome(){screen='flow';A.step=1;updateHeader();
   <div class="card"><h3>服薬の時間帯</h3><div class="grid">${SLOTS.map(t=>`<button type="button" data-slot="${t}" class="${A.slot===t?'sel':''}">${t}</button>`).join('')}</div>
   <p class="hint">時間帯は確認して選んでください。サーバー側でも処方の時間帯と照合します。</p></div>
   <button class="pri" id="next">利用者選択へ進む</button>
-  <button id="show-status">服薬状況一覧を見る</button><button id="show-history">服薬履歴を見る</button>`;
+  <button id="show-status">服薬状況一覧を見る</button><button id="show-history">服薬履歴を見る</button>
+  ${staff.role==='admin'?'<button class="pri" id="admin-menu">管理者メニュー（利用者・薬・処方の登録）</button>':''}`;
   $('#staff-toggle').onclick=()=>{const b=$('#staff-toggle'),list=$('#staff-roster');list.hidden=!list.hidden;b.setAttribute('aria-expanded',String(!list.hidden))};
   document.querySelectorAll('[data-slot]').forEach(b=>b.onclick=()=>{A.slot=b.dataset.slot;renderHome()});
-  $('#next').onclick=renderResidents;$('#show-status').onclick=()=>showStatus();$('#show-history').onclick=()=>showHistory();
+  $('#next').onclick=renderResidents;$('#show-status').onclick=()=>showStatus();$('#show-history').onclick=()=>showHistory();if($('#admin-menu'))$('#admin-menu').onclick=()=>renderAdmin();
+}
+
+// 管理画面: 画面の表示・非表示に加え、DBのRPCで管理者権限を毎回確認する。
+let adminBusy=false;
+const ADMIN_META={
+  resident:{title:'利用者',prefix:'R',rows:()=>C.residents},
+  medicine:{title:'薬剤',prefix:'M',rows:()=>C.medicines},
+  prescription:{title:'処方',prefix:'P',rows:()=>C.prescriptions}
+};
+function nextAdminId(kind){
+  const a=ADMIN_META[kind];const n=Math.max(0,...a.rows().map(r=>{
+    const m=String(r.id).match(new RegExp('^'+a.prefix+'(\\d+)$'));
+    return m?Number(m[1]):0;
+  }));
+  return a.prefix+String(n+1).padStart(3,'0');
+}
+function adminOptions(kind){
+  return ADMIN_META[kind].rows().filter(x=>kind==='prescription'?x.isActive:x.is_active).map(x=>{
+    const label=kind==='resident'?x.name:kind==='medicine'?x.name:
+      [x.id,repo.getResident(x.residentId)?.name||x.residentId,repo.getMedicine(x.medicineId)?.name||x.medicineId].join(' / ');
+    return `<option value="${esc(x.id)}">${esc(x.id+' / '+label)}</option>`;
+  }).join('');
+}
+function adminForm(kind){
+  const id=nextAdminId(kind);
+  if(kind==='resident')return `
+    <label for="am-id">利用者ID（重複不可）</label><input id="am-id" name="id" required pattern="R[0-9]{3,8}" maxlength="9" value="${esc(id)}" autocomplete="off">
+    <label for="am-name">利用者名</label><input id="am-name" name="name" required maxlength="100" autocomplete="off" placeholder="例：テスト利用者B">
+    <label for="am-kana">フリガナ（任意）</label><input id="am-kana" name="kana" maxlength="100" autocomplete="off">
+    <label for="am-room">部屋番号（任意）</label><input id="am-room" name="room" maxlength="50" autocomplete="off" placeholder="例：102">`;
+  if(kind==='medicine')return `
+    <label for="am-id">薬剤ID（重複不可）</label><input id="am-id" name="id" required pattern="M[0-9]{3,8}" maxlength="9" value="${esc(id)}" autocomplete="off">
+    <label for="am-name">薬剤名</label><input id="am-name" name="name" required maxlength="150" autocomplete="off" placeholder="例：テスト薬B">
+    <label for="am-shape">剤形（任意）</label><input id="am-shape" name="shape" maxlength="100" autocomplete="off" placeholder="例：錠剤">
+    <label for="am-strength">規格（任意）</label><input id="am-strength" name="strength" maxlength="100" autocomplete="off" placeholder="例：5mg">
+    <label for="am-note">備考（任意）</label><textarea id="am-note" name="note" maxlength="500" rows="2"></textarea>`;
+  return `
+    <label for="am-id">処方ID（QRに入れる文字）</label><input id="am-id" name="id" required pattern="P[0-9]{3,8}" maxlength="9" value="${esc(id)}" autocomplete="off">
+    <p class="mini">例：P002 を登録したら、Excel側でもQRの中身を P002 にします。</p>
+    <label for="am-res">利用者</label><select id="am-res" name="resident_id" required><option value="">選択してください</option>${adminOptions('resident')}</select>
+    <label for="am-med">薬剤</label><select id="am-med" name="medicine_id" required><option value="">選択してください</option>${adminOptions('medicine')}</select>
+    <label for="am-dose">1回量</label><input id="am-dose" name="dose" required maxlength="100" autocomplete="off" placeholder="例：1錠">
+    <label for="am-slot">服薬時間帯</label><select id="am-slot" name="time_slot" required><option value="">選択してください</option>${SLOTS.map(s=>`<option>${s}</option>`).join('')}</select>
+    <label for="am-start">開始日</label><input id="am-start" name="start_date" type="date" required value="${todayJST()}">
+    <label for="am-end">終了日</label><input id="am-end" name="end_date" type="date" required>
+    <p class="mini">テスト版では終了日も必須です。処方内容は保存後に書き換えず、変更する場合は旧処方を無効化して新しい処方IDを登録してください。</p>`;
+}
+function renderAdmin(kind='resident',info=''){
+  if(!staff||staff.role!=='admin'){home();return;}
+  if(!ADMIN_META[kind])kind='resident';
+  stopScan();screen='admin';updateHeader();
+  const rows=ADMIN_META[kind].rows();
+  const sorted=rows.slice().sort((a,b)=>{
+    const ae=kind==='prescription'?a.isActive:a.is_active;
+    const be=kind==='prescription'?b.isActive:b.is_active;
+    return Number(be)-Number(ae)||String(a.id).localeCompare(String(b.id),'ja');
+  });
+  $('#app').innerHTML=`<span class="section-label">管理者専用</span><h2>利用者・薬・処方の管理</h2>
+    <p class="lead">管理者アカウントで登録・無効化できます。スマホとPCの同じ画面からSupabaseに保存します。</p>
+    <div class="safety-panel">現在はテスト運用専用です。実在する利用者・薬・処方は、権限・監査・業務手順の検証が終わるまで登録しないでください。削除は行わず、過去の記録を残して無効化します。</div>
+    <div class="admin-tabs">${Object.entries(ADMIN_META).map(([key,v])=>`<button type="button" class="${kind===key?'active':''}" data-admin-tab="${key}">${v.title}</button>`).join('')}</div>
+    ${info?`<div class="info-panel" role="status">${esc(info)}</div>`:''}
+    <form id="admin-create" class="card admin-form"><h3>新しい${ADMIN_META[kind].title}を登録</h3>
+    ${adminForm(kind)}<div id="error" role="alert"></div>
+    <button type="submit" class="pri" id="admin-create-btn">内容を確認して新規登録</button></form>
+    <h3>登録済みの${ADMIN_META[kind].title}（${rows.length}件）</h3>
+    <p class="admin-notice">「無効化」は履歴を残して確認対象から外します。利用者・薬に有効な処方があるときは、先にその処方を無効化してください。</p>
+    <div class="admin-list">${sorted.map(x=>{
+      const active=kind==='prescription'?x.isActive:x.is_active;
+      const title=kind==='prescription'?`${x.id} / ${repo.getResident(x.residentId)?.name||x.residentId} / ${repo.getMedicine(x.medicineId)?.name||x.medicineId}`:`${x.id} / ${x.name}`;
+      const sub=kind==='resident'?`${x.kana||''} ${x.room?' / '+x.room+'号室':''}`:kind==='medicine'?`${x.strength||''} ${x.shape||''}`:
+        `${x.dose} / ${x.timeSlot} / ${x.startDate} ～ ${x.endDate||'終了日なし'}`;
+      return `<div class="admin-entry ${active?'':'off'}"><div class="admin-state">${active?'有効':'無効'}</div><b>${esc(title)}</b><div class="admin-sub">${esc(sub)}</div>
+        <button type="button" class="${active?'ng':''}" data-admin-id="${esc(x.id)}" data-admin-active="${active?'false':'true'}">${active?'無効化する':'再有効化する'}</button></div>`;
+    }).join('')||'<div class="status-empty">まだ登録がありません。</div>'}</div>
+    <button id="admin-refresh">サーバーの最新情報に更新</button><button id="admin-back">服薬確認へ戻る</button>`;
+  document.querySelectorAll('[data-admin-tab]').forEach(b=>b.onclick=()=>renderAdmin(b.dataset.adminTab));
+  document.querySelectorAll('[data-admin-id]').forEach(b=>b.onclick=()=>adminSetActive(kind,b.dataset.adminId,b.dataset.adminActive==='true'));
+  $('#admin-create').onsubmit=e=>adminCreate(e,kind);
+  $('#admin-back').onclick=home;
+  $('#admin-refresh').onclick=async()=>{
+    if(adminBusy)return;
+    const b=$('#admin-refresh');b.disabled=true;b.textContent='更新中…';
+    try{await loadMaster();renderAdmin(kind,'最新の登録情報を取得しました。')}
+    catch(e){notify('最新情報を読み込めませんでした。 '+errorMessage(e));b.disabled=false;b.textContent='サーバーの最新情報に更新'}
+  };
+}
+async function adminCreate(e,kind){
+  e.preventDefault();if(adminBusy||staff?.role!=='admin')return;
+  const form=$('#admin-create');if(!form.reportValidity())return;
+  const values=Object.fromEntries(new FormData(form).entries());
+  let summary='';
+  if(kind==='resident')summary=`${values.id} / ${values.name}`;
+  else if(kind==='medicine')summary=`${values.id} / ${values.name}`;
+  else{
+    if(values.end_date<values.start_date){notify('終了日は開始日以降にしてください。');return;}
+    const r=repo.getResident(values.resident_id),m=repo.getMedicine(values.medicine_id);
+    summary=`${values.id}\n利用者：${r?.name||values.resident_id}\n薬剤：${m?.name||values.medicine_id}\n量：${values.dose}\n時間帯：${values.time_slot}\n期間：${values.start_date} ～ ${values.end_date}`;
+  }
+  if(!confirm(`次の${ADMIN_META[kind].title}をサーバーに新規登録します。\n\n${summary}\n\n内容を確認しましたか？`))return;
+  adminBusy=true;const b=$('#admin-create-btn');b.disabled=true;b.textContent='登録中…';
+  try{
+    const {data,error}=await client.rpc('medcheck_admin_create',{p_kind:kind,p_values:values});
+    if(error)throw error;
+    if(data?.result!=='created')throw new Error('登録の完了を確認できませんでした。');
+    await loadMaster();renderAdmin(kind,`${data.id} を登録しました。`);
+  }catch(err){
+    let msg=errorMessage(err);
+    if(err?.code==='23505')msg='このIDはすでに使われています。別のIDにしてください。';
+    if(err?.code==='PGRST202'||err?.status===404)msg='Supabaseの管理機能SQLがまだ設定されていない可能性があります。付属の 02_管理者登録機能.sql を確認してください。';
+    notify('登録を確認できませんでした。重複登録を防ぐため、再試行前に一覧を更新してください。\n'+msg);
+    if(b){b.disabled=false;b.textContent='内容を確認して新規登録'}
+  }finally{adminBusy=false;}
+}
+async function adminSetActive(kind,id,active){
+  if(adminBusy||staff?.role!=='admin')return;
+  const row=ADMIN_META[kind].rows().find(x=>x.id===id);if(!row)return;
+  const label=kind==='prescription'?`${id} / ${repo.getResident(row.residentId)?.name||row.residentId}`:`${id} / ${row.name}`;
+  const verb=active?'再有効化':'無効化';
+  if(!confirm(`${ADMIN_META[kind].title}：${label}\n\n${verb}しますか？\n※過去の服薬記録は削除されません。`))return;
+  adminBusy=true;const b=[...document.querySelectorAll('[data-admin-id]')].find(x=>x.dataset.adminId===id);
+  if(b){b.disabled=true;b.textContent='変更中…'}
+  try{
+    const {data,error}=await client.rpc('medcheck_admin_set_active',{p_kind:kind,p_id:id,p_active:active});
+    if(error)throw error;
+    if(!['deactivated','reactivated','unchanged'].includes(data?.result))throw new Error('変更完了を確認できませんでした。');
+    await loadMaster();renderAdmin(kind,`${id} を${verb}しました。`);
+  }catch(err){
+    notify('変更を確認できませんでした。再試行前に一覧を更新してください。\n'+errorMessage(err));
+    if(b){b.disabled=false;b.textContent=active?'再有効化する':'無効化する'}
+  }finally{adminBusy=false;}
 }
 function renderResidents(){screen='flow';A.step=2;updateHeader();A.resident=null;A.rx=null;
   const residents=C.residents.filter(x=>x.is_active);
