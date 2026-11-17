@@ -362,7 +362,6 @@ tr.bad td { font-weight: 650; }
 
 /* Supabase移行版 */
 .login-shell {max-width:500px; margin:20px auto}
-.login-shell .err {white-space:pre-line; overflow-wrap:anywhere;}
 .login-shell label {font-size:14px;font-weight:700;display:block;margin:12px 0 5px}
 .login-shell input {margin-bottom:8px}
 .info-panel {border:1px solid #d9e0db;background:#f7faf8;border-left:4px solid var(--main);border-radius:8px;padding:14px 16px;margin:13px 0;font-size:14px}
@@ -416,27 +415,6 @@ const repo={
   getCurrentStatus(log){const a=this.getCorrections(log.id);return a.length?a[a.length-1].toStatus:log.status}
 };
 function errorMessage(e){return (e&&e.message)?e.message:'通信エラーが発生しました'}
-// 診断情報だけを表示する。パスワード・メール・APIキー・接続URLは表示しない。
-function safeAuthError(e){
-  const safe=(s,n=180)=>String(s??'なし')
-    .replace(/https?:\/\/[^\s\"'<>]+/gi,'[URL非表示]')
-    .replace(/sb_(?:publishable|secret)_[A-Za-z0-9_-]+/g,'[APIキー非表示]')
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,'[メール非表示]')
-    .slice(0,n);
-  const code=safe(e?.code||'なし',80),name=safe(e?.name||'なし',80),status=safe(e?.status??'なし',30),message=safe(e?.message||'なし',240);
-  const raw=String(e?.message||'');
-  let help='接続先Project URLとPublishable keyが同じプロジェクトか確認してください。';
-  if(/failed to fetch|network|fetch failed|connection|timeout|request failed/i.test(raw)||/AuthRetryableFetchError/i.test(name))
-    help='Supabaseへの通信に失敗している可能性があります。インターネット接続とProject URLを確認してください。';
-  else if(/invalid api key|invalid jwt|api key/i.test(raw))
-    help='SupabaseのAPIキーが正しいか、Project URLと同じプロジェクトか確認してください。';
-  else if(/invalid login credentials|invalid_credentials/i.test(code+' '+raw))
-    help='メールアドレス・パスワードと、接続先のSupabaseプロジェクトを確認してください。';
-  else if(/email not confirmed|email_not_confirmed/i.test(code+' '+raw))
-    help='SupabaseのAuthentication → Usersでメール認証状態を確認してください。';
-  return 'ログインできませんでした。'+help+'\n診断情報：\n種類: '+name+'\nHTTP状態: '+status+'\nコード: '+code+'\n内容: '+message;
-}
-
 function notify(message){const el=$('#error');if(el){el.innerHTML=`<div class="err" role="alert">${esc(message)}</div>`;}else alert(message)}
 function setLoading(message){$('#app').innerHTML=`<div class="card"><span class="spin" aria-hidden="true"></span> ${esc(message)}</div>`}
 function updateHeader(){
@@ -457,17 +435,9 @@ function renderLogin(message=''){
   ${message?`<div class="err">${esc(message)}</div>`:''}</div>`;
   $('#login-form').onsubmit=async e=>{
     e.preventDefault();let b=$('#login-button');b.disabled=true;b.textContent='確認中…';
-    try {
-      const {error}=await client.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});
-      if(error){
-        notify(safeAuthError(error));
-        b.disabled=false;b.textContent='ログイン';return;
-      }
-      await boot();
-    } catch (e) {
-      notify(safeAuthError(e));
-      b.disabled=false;b.textContent='ログイン';
-    }
+    const {error}=await client.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});
+    if(error){notify('ログインできませんでした。メールアドレスとパスワードを確認してください。');b.disabled=false;b.textContent='ログイン';return}
+    await boot();
   };
 }
 function renderBlocked(message){screen='blocked';updateHeader();$('#app').innerHTML=`<h2>利用権限を確認できません</h2><div class="err">${esc(message)}</div><p class="lead">管理者に職員アカウントの紐付けと有効状態を確認してもらってください。</p><button id="retry">再確認する</button>`;$('#retry').onclick=boot}
@@ -508,20 +478,8 @@ async function loadLogs(date){
 async function boot(){
   stopScan();setLoading('ログイン状態と利用権限を確認しています');
   try{
-    // 初回アクセスなどログインセッションがないときは、エラー画面ではなくログイン画面へ。
-    const {data:sessionData,error:sessionError}=await client.auth.getSession();
-    if(sessionError){
-      if(/session missing/i.test(sessionError.message||'')){user=null;staff=null;renderLogin();return}
-      throw sessionError;
-    }
-    if(!sessionData?.session){user=null;staff=null;renderLogin();return}
-    // セッションの有無を確認した後、サーバーでユーザーを検証する。
-    const {data:{user:current},error}=await client.auth.getUser();
-    if(error){
-      if(/session missing/i.test(error.message||'')){user=null;staff=null;renderLogin('ログイン状態が確認できませんでした。もう一度ログインしてください。');return}
-      throw error;
-    }
-    if(!current){user=null;staff=null;renderLogin();return}
+    const {data:{user:current},error}=await client.auth.getUser();if(error)throw error;
+    if(!current){renderLogin();return}
     user=current;
     const res=await client.from('staff').select('id,name,role,is_active,auth_user_id').eq('auth_user_id',user.id).eq('is_active',true).maybeSingle();
     if(res.error)throw res.error;
