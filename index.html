@@ -563,51 +563,189 @@ function renderConfirmResident(){A.step=2;updateHeader();const r=A.resident;
   <button id="yes" class="pri">別の手順で本人を確認した</button><button id="no">選び直す</button>`;
   $('#yes').onclick=renderScan;$('#no').onclick=renderResidents;
 }
+// QR読み取り部品は複数の配信元から取得する。接続できない場合は理由を表示する。
+let qrDecoderLoading=null, detector=null;
+let cameraStarting=false, lastQrFrame=0;
+function getBarcodeDetector(){
+  if(detector)return detector;
+  if(!('BarcodeDetector' in window))return null;
+  try{detector=new BarcodeDetector({formats:['qr_code']});return detector}catch(e){return null}
+}
+function qrAvailable(){return typeof window.jsQR==='function'||!!getBarcodeDetector()}
+function loadQrScript(url){
+  return new Promise((resolve)=>{
+    const script=document.createElement('script');let finished=false;
+    const complete=(ok)=>{if(finished)return;finished=true;clearTimeout(timer);if(!ok)script.remove();resolve(ok)};
+    const timer=setTimeout(()=>complete(false),6500);
+    script.src=url;script.async=true;script.onload=()=>complete(typeof window.jsQR==='function');script.onerror=()=>complete(false);
+    document.head.appendChild(script);
+  });
+}
+async function ensureQRDecoder(){
+  if(typeof window.jsQR==='function')return true;
+  if(!qrDecoderLoading){
+    qrDecoderLoading=(async()=>{
+      const sources=[
+        'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',
+        'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'
+      ];
+      for(const url of sources){
+        if(await loadQrScript(url)&&qrAvailable())return true;
+      }
+      return qrAvailable();
+    })().finally(()=>{qrDecoderLoading=null});
+  }
+  // 標準のBarcodeDetectorがある場合は、追加ライブラリの取得を待たずに利用できる。
+  // ただし追加ライブラリの読み込みも進め、標準解析失敗時に切り替え可能にする。
+  if(getBarcodeDetector())return true;
+  return qrDecoderLoading;
+}
+function setQRStatus(t){const el=$('#qr-status');if(el)el.textContent=t}
 function renderScan(){screen='flow';A.step=3;A.status=null;A.rsel='';A.rfree='';updateHeader();stopScan();
   $('#app').innerHTML=`<span class="section-label">STEP 03 / 薬袋QR</span><h2>薬袋のQRを読み取る</h2>
   <div class="card"><b>${esc(A.resident.name)}</b> ／ ${esc(A.slot)}</div>
-  <div class="qrguide">QRに登録された<strong>処方ID</strong>を読み取ります。番号はSupabaseの服薬予定テーブルに登録したIDと一致する必要があります。</div>
+  <div class="qrguide">QRに登録された<strong>処方ID</strong>を読み取ります。番号はSupabaseの服薬予定テーブルに登録したID（例：P001）と一致する必要があります。<br>Excelファイルそのものではなく、QRが写った画像（PNG・JPEG等）を選んでください。</div>
+  <div id="qr-status" class="hint" role="status" aria-live="polite">QR読み取り機能を確認しています…</div>
   <div id="cam" style="display:none"><video id="video" autoplay playsinline muted></video><button id="stop">カメラを停止</button></div>
   <div id="error" role="alert"></div>
   <button class="pri" id="start">カメラを起動する</button>
-  <div class="card"><h3>写真からQRを読み取る</h3><input type="file" id="qrphoto" accept="image/*"></div>
+  <button type="button" id="alternate-camera">別のカメラ設定で試す</button>
+  <div class="card"><h3>写真からQRを読み取る</h3><p class="hint">QRコードが鮮明に写ったPNG・JPEG画像を選択してください。</p><input type="file" id="qrphoto" accept="image/*" aria-label="QR画像を選択"></div>
   <div class="card"><h3>処方IDを手入力する</h3><input id="code" autocomplete="off" placeholder="例：P001"><button id="manual">番号を照合する</button></div>
   <button id="back">利用者選択へ戻る</button><canvas id="cv" hidden></canvas>`;
-  $('#start').onclick=startScan;$('#stop').onclick=()=>{stopScan();$('#cam').style.display='none';$('#start').style.display=''};
+  $('#start').onclick=()=>startScan(false);
+  $('#alternate-camera').onclick=()=>startScan(true);
+  $('#stop').onclick=()=>{stopScan();$('#cam').style.display='none';$('#start').style.display=''};
   $('#manual').onclick=()=>onCode($('#code').value);$('#qrphoto').onchange=photoScan;$('#back').onclick=renderResidents;
+  (async()=>{
+    const ok=await ensureQRDecoder();
+    if(!$('#qr-status'))return;
+    setQRStatus(ok?'QR解析部品：利用可能':'QR解析部品：読み込めませんでした。通信を確認するか処方IDを手入力してください。');
+  })();
 }
-async function decodeQR(source,canvas){
-  if('BarcodeDetector' in window){try{const detector=new BarcodeDetector({formats:['qr_code']});const result=await detector.detect(source);if(result.length)return result[0].rawValue}catch(e){}}
-  if(typeof jsQR!=='function')return null;
-  const w=source.videoWidth||source.naturalWidth||source.width,h=source.videoHeight||source.naturalHeight||source.height;if(!w||!h)return null;
-  const k=Math.min(1,1400/Math.max(w,h));canvas.width=Math.round(w*k);canvas.height=Math.round(h*k);
-  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(source,0,0,canvas.width,canvas.height);
-  const q=jsQR(ctx.getImageData(0,0,canvas.width,canvas.height).data,canvas.width,canvas.height,{inversionAttempts:'attemptBoth'});
-  return q?.data||null;
+async function decodeQR(source,canvas,isStill=false){
+  const native=getBarcodeDetector();
+  if(native){
+    try{const result=await native.detect(source);if(result.length&&result[0].rawValue)return result[0].rawValue}
+    catch(e){console.warn('標準QR解析から画像解析へ切り替えます',e?.name||e)}
+  }
+  if(typeof window.jsQR!=='function')return null;
+  const w=source.videoWidth||source.naturalWidth||source.width;
+  const h=source.videoHeight||source.naturalHeight||source.height;
+  if(!w||!h)throw new Error('画像のサイズを読み取れませんでした');
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  if(!ctx)throw new Error('画像解析に使用する描画機能が利用できません');
+  const max=Math.max(w,h);
+  // 静止画は複数の解像度・中央領域で試し、小さなQRにも対応する。
+  const cases=isStill?[
+    [0,0,w,h,Math.min(max,1600)],
+    [0,0,w,h,Math.min(max,2300)],
+    [w*.15,h*.15,w*.70,h*.70,Math.min(max,2000)]
+  ]:[[0,0,w,h,Math.min(max,1100)]];
+  for(const [x,y,cw,ch,limit] of cases){
+    const ratio=Math.min(1,limit/Math.max(cw,ch));
+    const dw=Math.max(1,Math.round(cw*ratio)),dh=Math.max(1,Math.round(ch*ratio));
+    canvas.width=dw;canvas.height=dh;
+    ctx.drawImage(source,x,y,cw,ch,0,0,dw,dh);
+    const pixels=ctx.getImageData(0,0,dw,dh);
+    const q=window.jsQR(pixels.data,dw,dh,{inversionAttempts:'attemptBoth'});
+    if(q?.data)return q.data;
+  }
+  return null;
 }
-async function startScan(){
-  if(scanStream)return;
-  if(!navigator.mediaDevices?.getUserMedia){notify('カメラにはHTTPSとブラウザのアクセス許可が必要です。');return}
-  if(!('BarcodeDetector' in window)&&typeof jsQR!=='function'){notify('QR読み取りライブラリを読み込めません。通信を確認してください。');return}
-  const token=++scanToken;let videoStream=null;
+function cameraErrorText(e){
+  const n=e?.name||'UnknownError';
+  if(n==='NotAllowedError'||n==='PermissionDeniedError'||n==='SecurityError')
+    return 'カメラの使用が拒否されています。ブラウザのアドレスバー付近のサイト設定でカメラを許可し、もう一度お試しください。（'+n+'）';
+  if(n==='NotFoundError'||n==='DevicesNotFoundError')
+    return '使用できるカメラが見つかりません。PCにカメラが接続されているか確認してください。（'+n+'）';
+  if(n==='NotReadableError'||n==='TrackStartError')
+    return 'カメラを起動できません。別のアプリ・会議ソフトがカメラを使用していないか確認してください。（'+n+'）';
+  if(n==='OverconstrainedError')
+    return 'この端末では要求したカメラ設定を使えません。「別のカメラ設定で試す」を押してください。（'+n+'）';
+  if(n==='AbortError')return 'カメラが途中で停止しました。別のカメラ設定で再試行してください。（AbortError）';
+  return 'カメラの起動に失敗しました。（'+n+'） '+String(e?.message||'').slice(0,130);
+}
+async function startScan(useAny=false){
+  if(cameraStarting||scanStream)return;
+  if(!navigator.mediaDevices?.getUserMedia){
+    notify('カメラAPIを利用できません。GitHub Pagesの https:// で始まる公開URLをSafari・Chromeで開いてください。ブラウザ内プレビューではカメラが使えない場合があります。');return;
+  }
+  cameraStarting=true;const token=++scanToken;let videoStream=null;
+  const start=$('#start');if(start){start.disabled=true;start.textContent='カメラの起動を確認中…'}
   try{
-    try{videoStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false})}catch(e){if(e.name!=='OverconstrainedError'&&e.name!=='NotFoundError')throw e;videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false})}
+    if(!await ensureQRDecoder()){
+      notify('QR解析部品を読み込めません。通信環境を確認してください。手入力は使用できます。');return;
+    }
+    setQRStatus('QR解析部品：利用可能');
+    const constraints=useAny?{video:true,audio:false}:{video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false};
+    try{videoStream=await navigator.mediaDevices.getUserMedia(constraints)}
+    catch(e){
+      if(!useAny&&(e.name==='OverconstrainedError'||e.name==='NotFoundError'))
+        videoStream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+      else throw e;
+    }
     if(token!==scanToken){videoStream.getTracks().forEach(t=>t.stop());return}
     scanStream=videoStream;const v=$('#video');if(!v){stopScan();return}
-    v.srcObject=scanStream;$('#cam').style.display='block';$('#start').style.display='none';await v.play();
-    if(token!==scanToken)return;
+    v.srcObject=scanStream;$('#cam').style.display='block';$('#start').style.display='none';
+    await v.play();if(token!==scanToken)return;
+    lastQrFrame=0;
     const loop=async()=>{
       if(token!==scanToken||!scanStream)return;
-      if(!scanBusy&&v.readyState>=2){scanBusy=true;try{const raw=await decodeQR(v,$('#cv'));if(raw&&scanStream&&token===scanToken){stopScan();await onCode(raw);return}}catch(e){}finally{scanBusy=false}}
+      const now=performance.now();
+      if(!scanBusy&&now-lastQrFrame>=140&&v.readyState>=2&&v.videoWidth){
+        lastQrFrame=now;
+        scanBusy=true;
+        try{
+          const raw=await decodeQR(v,$('#cv'));
+          if(raw&&scanStream&&token===scanToken){stopScan();await onCode(raw);return}
+        }catch(e){console.warn('カメラのQR解析に失敗',e)}finally{scanBusy=false}
+      }
       if(token===scanToken)scanRaf=requestAnimationFrame(loop);
     };scanRaf=requestAnimationFrame(loop);
-  }catch(e){if(videoStream)videoStream.getTracks().forEach(t=>t.stop());notify('カメラを起動できません。ブラウザの権限を確認してください。 '+errorMessage(e))}
+  }catch(e){
+    if(videoStream)videoStream.getTracks().forEach(t=>t.stop());
+    if(scanStream===videoStream)scanStream=null;
+    notify(cameraErrorText(e));
+  }finally{
+    cameraStarting=false;
+    if($('#start')){$('#start').disabled=false;$('#start').textContent='カメラを起動する'}
+  }
 }
-async function photoScan(e){const file=e.target.files?.[0];if(!file)return;stopScan();try{
-  const im=new Image(),url=URL.createObjectURL(file);
-  try{await new Promise((resolve,reject)=>{im.onload=resolve;im.onerror=reject;im.src=url})}finally{URL.revokeObjectURL(url)}
-  const data=await decodeQR(im,$('#cv'));if(!data){notify('写真にQRが見つかりませんでした。');return}await onCode(data);
-}catch(e){notify('画像を読み取れませんでした。'+errorMessage(e))}}
+function loadQrImage(file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file),im=new Image();
+    im.onload=()=>{URL.revokeObjectURL(url);resolve(im)};
+    im.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('この画像形式はブラウザで読み込めません。PNGまたはJPEGに変換してください。'))};
+    im.src=url;
+  });
+}
+async function photoScan(e){
+  const file=e.target.files?.[0];if(!file)return;
+  stopScan();
+  const chooser=e.target;chooser.disabled=true;
+  try{
+    if(!file.type.startsWith('image/')&&!/\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(file.name)){
+      notify('ExcelファイルはQR画像として読み取れません。QR部分を画像（PNG・JPEG等）として保存してください。');return;
+    }
+    if(file.size>25*1024*1024){notify('画像が大きすぎます。25MB以下のPNG・JPEG画像を選択してください。');return}
+    if(!await ensureQRDecoder()){
+      setQRStatus('QR解析部品：利用できません');
+      notify('QR解析部品を読み込めませんでした。ネットワーク接続を確認してください。');return;
+    }
+    setQRStatus('QR画像を解析しています…');
+    const im=await loadQrImage(file);
+    if(!$('#cv'))return;
+    const data=await decodeQR(im,$('#cv'),true);
+    if(!data){
+      setQRStatus('QR解析部品：利用可能／画像内のQRは検出できませんでした');
+      notify('画像は開けましたが、QRコードを検出できませんでした。QR部分を大きく切り出したPNG・JPEG画像で試してください。');return;
+    }
+    setQRStatus('QRを検出しました。処方IDを照合しています…');
+    await onCode(data);
+  }catch(e){notify('画像の処理に失敗しました。'+String(e?.message||e).slice(0,150))}
+  finally{if(chooser.isConnected){chooser.disabled=false;chooser.value=''}}
+}
 async function onCode(raw){stopScan();const code=String(raw||'').trim();if(!code){notify('処方IDを入力してください。');return}
   setLoading('最新の処方と記録を確認しています');
   try{await loadMaster();await loadLogs(todayJST());
