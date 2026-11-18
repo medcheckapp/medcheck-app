@@ -430,6 +430,57 @@ header .header-inner {align-items:center}
 .qr-period-presets{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}
 .qr-period-presets button{flex:1 1 110px;margin:0;font-size:12px;padding:9px 6px;min-height:42px}
 @media(max-width:520px){.qr-label-grid{grid-template-columns:1fr}.qr-options{grid-template-columns:1fr}}
+/* ---------- QR管理画面：スマホの横はみ出し対策 ---------- */
+/* グリッド内の子要素は既定の最小幅を持つため、狭い画面でも縮められるようにする。 */
+#app, #qr-page, #qr-content, .qr-label-grid, .qr-options,
+.qr-top-actions, .qr-period-presets, .qr-print-heading {
+  min-width:0;
+  max-width:100%;
+}
+.qr-options > div, .qr-label-grid > *, .qr-check span { min-width:0; max-width:100%; }
+.qr-options input, .qr-options select,
+.qr-options input[type="date"] {
+  display:block;
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  box-sizing:border-box;
+}
+.qr-top-actions > button, .qr-period-presets > button {
+  min-width:0;
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.qr-label {
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+  overflow-wrap:anywhere;
+}
+.qr-label svg { width:95%; max-width:200px; height:auto; }
+.qr-label-date, .qr-label-meta, .qr-label-drugs, .qr-label-name,
+.qr-label-note, .qr-print-heading, #print-toolbar .lead {
+  overflow-wrap:anywhere;
+  word-break:normal;
+}
+.qr-label-date-caption { display:block; font-size:12px; line-height:1.5; }
+.qr-label-date-range { display:block; font-size:clamp(12px,3.4vw,16px); line-height:1.45; }
+@media (max-width:520px) {
+  .qr-options, .qr-label-grid { grid-template-columns:minmax(0,1fr); }
+  .qr-top-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .qr-top-actions > button { width:100%; padding:10px 5px; font-size:13px; }
+  .qr-period-presets { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .qr-period-presets > button { width:100%; padding:9px 5px; }
+  .qr-label { padding:13px 9px; }
+  .qr-label svg { max-width:min(200px,90%); }
+  .qr-label-date { padding:6px 4px; }
+}
+@media (max-width:320px) {
+  .qr-top-actions { grid-template-columns:minmax(0,1fr); }
+  .qr-label-date-range { font-size:12px; }
+}
+
 @media print {
  @page {size:A4 portrait;margin:10mm}
  body.qr-print-view {background:#fff;color:#000;font:12px/1.35 sans-serif}
@@ -2267,7 +2318,7 @@ async function createGroup(e){
 function printLabel(entry){
   const resident=repo.getResident(entry.residentId),drugNames=entry.rxs.map(rx=>`${esc(repo.getMedicine(rx.medicineId)?.name||'不明')}：${esc(rx.dose)}`);
   return `<article class="qr-label"><div class="qr-label-kind">${entry.type==='group'?'一包化':'個別包装'} ／ ${esc(entry.slot)}</div>
-    <div class="qr-label-date">QR使用期間：${esc(entry.validStart)} ～ ${esc(entry.validEnd)}</div>
+    <div class="qr-label-date"><span class="qr-label-date-caption">QR使用期間</span><span class="qr-label-date-range">${esc(entry.validStart)} ～ ${esc(entry.validEnd)}</span></div>
     <div class="qr-label-id">${esc(entry.id)}</div>${qrSvg(entry.qrValue)}
     <div class="qr-label-name">${esc(resident?.name||entry.residentId)}</div>
     <div class="qr-label-meta">${esc(resident?.room||'—')}号室 ／ ${esc(entry.slot)} ／ 処方期間：${esc(entry.rxs[0]?.startDate||'')} ～ ${esc(entry.rxs[0]?.endDate||'')}</div>
