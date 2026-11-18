@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>服薬確認 | 期間1枚QR版（テスト）</title>
+<title>服薬確認 | 管理メニュー・職員管理（テスト）</title>
 <script src="./config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
@@ -496,10 +496,46 @@ header .header-inner {align-items:center}
  body.qr-print-view .qr-label-drugs {font-size:8pt}
  body.qr-print-view .qr-print-heading {font-size:12pt}
 }
+
+/* ---------- 管理メニュー：スマホでも使えるドロワー ---------- */
+[hidden] {display:none!important}
+.header-inner {min-width:0}
+.brand{min-width:0}
+.header-actions{display:flex;gap:8px;align-items:center;min-width:0}
+button.menu-toggle {flex:none;width:43px;min-width:43px;height:43px;min-height:43px;margin:0;padding:7px;display:grid;place-items:center;color:var(--main-dark);border:1px solid var(--line);background:var(--main-soft);font-size:23px;line-height:1}
+#who{max-width:130px;min-width:0;overflow-wrap:anywhere}
+#admin-menu-overlay{position:fixed;inset:0;background:rgba(17,37,28,.48);z-index:1000;cursor:pointer;border:0;border-radius:0;width:100%;height:100%;min-height:0;margin:0;padding:0}
+#admin-drawer{position:fixed;z-index:1001;right:0;top:0;bottom:0;width:min(340px,90vw);max-width:100%;overflow-y:auto;overscroll-behavior:contain;background:#fff;box-shadow:-10px 0 30px rgba(0,0,0,.16);padding:20px 19px 25px}
+.drawer-header{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:15px;margin-bottom:16px}
+.drawer-header b{font-size:21px;color:var(--main-dark)}
+#drawer-close{min-width:42px;width:42px;min-height:42px;height:42px;margin:0;padding:6px}
+.drawer-group-title{font-size:12px;color:var(--muted);font-weight:750;letter-spacing:.08em;margin:20px 0 7px}
+#admin-drawer [data-go]{min-height:46px;text-align:left;margin:5px 0;padding:10px 13px;font-size:15px;background:#fff}
+#admin-drawer [data-go]:focus-visible{outline-offset:0}
+#admin-drawer [data-go].selected{background:var(--main-soft);border-color:var(--main);color:var(--main-dark)}
+#admin-drawer .drawer-notice{margin-top:20px;color:var(--muted);font-size:12px}
+.admin-home-hint{margin:20px 0 0;font-size:13px;color:var(--muted)}
+.staff-admin-actions{display:flex;gap:8px;flex-wrap:wrap}
+.staff-admin-actions button{flex:1 1 120px;font-size:13px;padding:8px 9px;margin:4px 0;min-height:43px}
+.initial-password-box{border:2px solid var(--main);background:#f1f8f4;padding:15px;border-radius:10px;margin:18px 0}
+.initial-password-box input{background:#fff;width:100%;font-size:17px;letter-spacing:.04em}
+.initial-password-box .hint{margin-top:8px}
+@media(max-width:440px){.brand-name{font-size:21px}.brand-label{font-size:10px}.header-inner{padding:13px 12px;gap:5px}.header-actions{gap:5px}#who{font-size:10px;max-width:77px}#logout{font-size:10px;padding:6px 5px}button.menu-toggle{width:39px;min-width:39px;height:39px;min-height:39px;font-size:21px}}
+@media print {body.qr-print-view #admin-drawer,body.qr-print-view #admin-menu-overlay{display:none!important}}
 </style></head><body>
 <header><div class="header-inner"><div class="brand"><span class="brand-label">服薬管理 / サーバー連携</span><span class="brand-name">服薬確認</span></div>
-<div style="display:flex;gap:8px;align-items:center"><div id="who"></div><button id="logout" type="button" hidden>ログアウト</button></div></div>
+<div class="header-actions"><div id="who"></div><button id="logout" type="button" hidden>ログアウト</button><button id="menu-toggle" class="menu-toggle" type="button" hidden aria-expanded="false" aria-controls="admin-drawer" aria-label="管理者メニューを開く">&#9776;</button></div></div>
 <nav class="steps" id="steps" aria-label="服薬確認の進行状況"></nav></header>
+<button type="button" id="admin-menu-overlay" hidden aria-label="メニューを閉じる"></button>
+<nav id="admin-drawer" aria-label="管理者メニュー" hidden>
+  <div class="drawer-header"><b>管理者メニュー</b><button id="drawer-close" aria-label="メニューを閉じる" type="button">×</button></div>
+  <div class="drawer-group-title">服薬確認</div>
+  <button data-go="home" type="button">服薬確認へ戻る</button><button data-go="status" type="button">本日の服薬状況</button><button data-go="history" type="button">服薬履歴</button>
+  <div class="drawer-group-title">管理</div>
+  <button data-go="resident" type="button">利用者管理</button><button data-go="medicine" type="button">薬剤管理</button><button data-go="prescription" type="button">処方・服薬予定管理</button>
+  <button data-go="qr" type="button">一包化登録・QR作成／印刷</button><button data-go="staff" type="button">職員管理</button>
+  <div class="drawer-notice">新規職員の権限は一般職員に固定されます。アカウント登録はサーバー側で管理者を確認してから実行します。</div>
+</nav>
 <main id="app"><div class="card">ログイン画面を準備しています。</div></main>
 <script>
 /* QRコード生成: 同梱のExcel QR作成ツールと同じMITライセンスのQRライブラリを内蔵。 */
@@ -1859,6 +1895,8 @@ function updateHeader(){
   document.body.classList.toggle('qr-print-view',screen==='qrprint');
   $('#who').textContent=staff?`担当：${staff.name}`:'';
   $('#logout').hidden=!user;
+  $('#menu-toggle').hidden=!(staff&&staff.role==='admin'&&screen!=='qrprint');
+  closeAdminMenu();
   const labels=screen==='flow'?['職員','利用者','薬QR','照合','記録']:[];
   $('#steps').innerHTML=labels.length?labels.map((t,i)=>`<span class="${A.step===i+1?'on':''}" data-number="${i+1}">${t}</span>`).join(''):
     `<span class="on history-step">${screen==='status'?'服薬状況一覧':screen==='history'?'服薬履歴':screen==='login'?'ログイン':screen==='done'?'記録完了':screen==='admin'?'管理者メニュー':screen==='qrprint'?'QR印刷':'確認'}</span>`;
@@ -1866,21 +1904,29 @@ function updateHeader(){
 function renderLogin(message=''){
   screen='login';staff=null;user=null;updateHeader();
   $('#app').innerHTML=`<div class="login-shell"><span class="section-label">職員専用</span><h2>ログイン</h2>
-  <p class="lead">職員ごとのメールアドレスとパスワードでログインしてください。</p>
+  <p class="lead">職員IDとパスワードでログインできます。最初に登録した管理者は、従来のメールアドレスでもログインできます。</p>
   <div class="safety-panel">安全検証中の接続版です。実在する利用者・処方・服薬記録は、運用承認が終わるまで登録しないでください。</div>
-  <form class="card" id="login-form"><label for="email">メールアドレス</label><input type="email" id="email" required autocomplete="username">
+  <form class="card" id="login-form"><label for="email">職員ID または メールアドレス</label><input type="text" id="email" required maxlength="160" autocomplete="username" placeholder="例：S002 または staff@example.com">
   <label for="password">パスワード</label><input type="password" id="password" required autocomplete="current-password">
   <button class="pri" type="submit" id="login-button">ログイン</button><div id="error" role="alert"></div></form>
   ${message?`<div class="err">${esc(message)}</div>`:''}</div>`;
   $('#login-form').onsubmit=async e=>{
     e.preventDefault();let b=$('#login-button');b.disabled=true;b.textContent='確認中…';
     try {
-      const {error}=await client.auth.signInWithPassword({email:$('#email').value.trim(),password:$('#password').value});
+      const loginId=$('#email').value.trim();
+      // Supabase Authはメール/電話での認証なので、職員IDを専用の内部エイリアスに変換する。
+      // これはログイン用の内部識別子であり、メールは送信しない。
+      const loginMail=/^S[0-9]{3,8}$/i.test(loginId)?loginId.toLowerCase()+'@staff.medcheck.example':loginId;
+      if(!loginMail.includes('@')){notify('職員ID（例：S002）またはメールアドレスを入力してください。');b.disabled=false;b.textContent='ログイン';return;}
+      const {error}=await client.auth.signInWithPassword({email:loginMail,password:$('#password').value});
       if(error){
         notify(safeAuthError(error));
         b.disabled=false;b.textContent='ログイン';return;
       }
-      await boot();
+      const {data:whoData,error:whoError}=await client.auth.getUser();
+      if(whoError)throw whoError;
+      if(whoData?.user?.app_metadata?.medcheck_must_change_password===true)renderInitialPasswordChange();
+      else await boot();
     } catch (e) {
       notify(safeAuthError(e));
       b.disabled=false;b.textContent='ログイン';
@@ -1967,6 +2013,7 @@ async function boot(){
     }
     if(!current){user=null;staff=null;renderLogin();return}
     user=current;
+    if(current.app_metadata?.medcheck_must_change_password===true){renderInitialPasswordChange();return;}
     const res=await client.from('staff').select('id,name,role,is_active,auth_user_id').eq('auth_user_id',user.id).eq('is_active',true).maybeSingle();
     if(res.error)throw res.error;
     if(!res.data){staff=null;renderBlocked('ログインアカウントに有効な職員情報が関連付けられていません。');return}
@@ -1988,10 +2035,33 @@ function renderHome(){screen='flow';A.step=1;updateHeader();
   <p class="hint">時間帯は確認して選んでください。サーバー側でも処方の時間帯と照合します。</p></div>
   <button class="pri" id="next">利用者選択へ進む</button>
   <button id="show-status">服薬状況一覧を見る</button><button id="show-history">服薬履歴を見る</button>
-  ${staff.role==='admin'?'<button class="pri" id="admin-menu">管理者メニュー（利用者・薬・処方の登録）</button><button id="admin-qr-shortcut">QR作成・印刷（一包化／個別）</button>':''}`;
+  ${staff.role==='admin'?'<p class="admin-home-hint">管理者の登録・QR作成・職員管理は、右上の「≡」から開けます。</p>':''}`;
   $('#staff-toggle').onclick=()=>{const b=$('#staff-toggle'),list=$('#staff-roster');list.hidden=!list.hidden;b.setAttribute('aria-expanded',String(!list.hidden))};
   document.querySelectorAll('[data-slot]').forEach(b=>b.onclick=()=>{A.slot=b.dataset.slot;renderHome()});
-  $('#next').onclick=renderResidents;$('#show-status').onclick=()=>showStatus();$('#show-history').onclick=()=>showHistory();if($('#admin-menu'))$('#admin-menu').onclick=()=>renderAdmin();if($('#admin-qr-shortcut'))$('#admin-qr-shortcut').onclick=()=>renderQRAdmin();
+  $('#next').onclick=renderResidents;$('#show-status').onclick=()=>showStatus();$('#show-history').onclick=()=>showHistory();
+}
+
+// 管理者だけが開けるナビゲーション。一般職員にはボタン自体を表示しない。
+function closeAdminMenu(){
+  const menu=$('#admin-drawer'),overlay=$('#admin-menu-overlay'),toggle=$('#menu-toggle');
+  if(menu)menu.hidden=true;if(overlay)overlay.hidden=true;
+  if(toggle){toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','管理者メニューを開く')}
+}
+function openAdminMenu(){
+  if(staff?.role!=='admin')return;
+  const menu=$('#admin-drawer'),overlay=$('#admin-menu-overlay'),toggle=$('#menu-toggle');
+  menu.hidden=false;overlay.hidden=false;toggle.setAttribute('aria-expanded','true');toggle.setAttribute('aria-label','管理者メニューを閉じる');
+  $('#drawer-close').focus();
+}
+function goAdminMenu(target){
+  closeAdminMenu();
+  if(staff?.role!=='admin')return;
+  if(target==='home')home();
+  else if(target==='status')showStatus();
+  else if(target==='history')showHistory();
+  else if(target==='qr')renderQRAdmin();
+  else if(target==='staff')renderStaffAdmin();
+  else if(['resident','medicine','prescription'].includes(target))renderAdmin(target);
 }
 
 // 管理画面: 画面の表示・非表示に加え、DBのRPCで管理者権限を毎回確認する。
@@ -2050,7 +2120,7 @@ function renderAdmin(kind='resident',info=''){
     return Number(be)-Number(ae)||String(a.id).localeCompare(String(b.id),'ja');
   });
   $('#app').innerHTML=`<span class="section-label">管理者専用</span><h2>利用者・薬・処方の管理</h2>
-    <p class="lead">管理者アカウントで登録・無効化できます。スマホとPCの同じ画面からSupabaseに保存します。</p><button class="pri" id="admin-qr-link">QR作成・印刷／一包化登録へ</button>
+    <p class="lead">管理者アカウントで登録・無効化できます。ほかの管理機能は右上の「≡」から切り替えられます。</p>
     <div class="safety-panel">現在はテスト運用専用です。実在する利用者・薬・処方は、権限・監査・業務手順の検証が終わるまで登録しないでください。削除は行わず、過去の記録を残して無効化します。</div>
     <div class="admin-tabs">${Object.entries(ADMIN_META).map(([key,v])=>`<button type="button" class="${kind===key?'active':''}" data-admin-tab="${key}">${v.title}</button>`).join('')}</div>
     ${info?`<div class="info-panel" role="status">${esc(info)}</div>`:''}
@@ -2072,7 +2142,6 @@ function renderAdmin(kind='resident',info=''){
   document.querySelectorAll('[data-admin-id]').forEach(b=>b.onclick=()=>adminSetActive(kind,b.dataset.adminId,b.dataset.adminActive==='true'));
   $('#admin-create').onsubmit=e=>adminCreate(e,kind);
   $('#admin-back').onclick=home;
-  $('#admin-qr-link').onclick=()=>renderQRAdmin();
   $('#admin-refresh').onclick=async()=>{
     if(adminBusy)return;
     const b=$('#admin-refresh');b.disabled=true;b.textContent='更新中…';
@@ -2154,6 +2223,129 @@ function downloadQrPNG(code){
     document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);
   },'image/png');
 }
+
+// 職員ID（メール不要）の登録・無効化・パスワード再発行。
+// すべてEdge Functionが管理者権限を検証し、ブラウザに秘密のAPIキーは渡さない。
+function nextStaffId(){
+  const max=Math.max(0,...C.staff.map(s=>{const m=String(s.id).match(/^S(\d+)$/);return m?Number(m[1]):0}));
+  return 'S'+String(max+1).padStart(3,'0');
+}
+async function callStaffAdmin(body){
+  if(!client)throw new Error('ログインが必要です。');
+  const {data,error}=await client.functions.invoke('medcheck-staff-admin',{body});
+  if(error){
+    // HTTPエラー応答の日本語メッセージを取り出す（APIキー・認証情報は表示しない）
+    let detail='';
+    try{const response=error.context;if(response&&typeof response.json==='function'){const raw=await response.json();detail=String(raw?.error||'').slice(0,180)}}catch(_){/* ignore */}
+    throw new Error(detail||'職員管理のサーバー機能を呼び出せません。Edge Functionの設定を確認してください。');
+  }
+  if(!data?.ok)throw new Error(data?.error||'職員管理操作を確認できませんでした。');
+  return data;
+}
+function renderStaffAdmin(message=''){
+  if(staff?.role!=='admin'){home();return;}
+  stopScan();screen='admin';updateHeader();
+  const rows=C.staff.slice().sort((a,b)=>Number(b.is_active)-Number(a.is_active)||a.id.localeCompare(b.id,'ja'));
+  $('#app').innerHTML=`<span class="section-label">管理者専用</span><h2>職員管理</h2>
+    <p class="lead">新しい職員は全員「一般職員」で登録します。メールアドレスや招待メールは不要です。職員IDと初期パスワードを本人に安全な方法で渡してください。</p>
+    <div class="safety-panel">テスト用です。職員ごとに別のIDとパスワードを使用します。初期パスワードは発行時に一度しか表示されません。管理者の追加や権限変更はこの画面からできません。</div>
+    ${message?`<div class="info-panel" role="status">${esc(message)}</div>`:''}
+    <form id="staff-admin-create" class="card admin-form">
+      <h3>一般職員を新規登録</h3>
+      <label for="staff-new-id">職員ID（自動候補）</label><input id="staff-new-id" name="id" required pattern="S[0-9]{3,8}" maxlength="9" value="${esc(nextStaffId())}" autocomplete="off">
+      <label for="staff-new-name">職員名</label><input id="staff-new-name" name="name" required maxlength="100" autocomplete="off" placeholder="例：テスト職員B">
+      <p class="hint">権限：一般職員（固定）／メール送信なし／初回ログインでパスワード変更</p>
+      <div id="error" role="alert"></div>
+      <button class="pri" type="submit" id="staff-create-button">登録して初期パスワードを発行</button>
+    </form>
+    <div id="staff-secret-holder"></div>
+    <h3>登録済み職員（${rows.length}名）</h3>
+    <div class="admin-list">${rows.map(x=>`<div class="admin-entry ${x.is_active?'':'off'}">
+      <div class="admin-state">${x.is_active?'有効':'無効'}</div><b>${esc(x.id)} / ${esc(x.name)}</b>
+      <div class="admin-sub">${x.role==='admin'?'管理者':'一般職員'}${x.id===staff.id?' ／ 現在のログイン職員':''}</div>
+      ${x.role==='staff'?`<div class="staff-admin-actions">
+        <button type="button" data-staff-active="${esc(x.id)}" data-to="${x.is_active?'false':'true'}" class="${x.is_active?'ng':''}">${x.is_active?'無効化する':'再有効化する'}</button>
+        <button type="button" data-staff-reset="${esc(x.id)}">パスワード再発行</button>
+      </div>`:''}</div>`).join('')||'<div class="info-panel">職員登録はありません。</div>'}</div>
+    <button id="staff-refresh" type="button">職員一覧を更新</button><button id="staff-back" type="button">服薬確認へ戻る</button>`;
+  $('#staff-admin-create').onsubmit=createStaffFromForm;
+  document.querySelectorAll('[data-staff-active]').forEach(b=>b.onclick=()=>setStaffActive(b.dataset.staffActive,b.dataset.to==='true'));
+  document.querySelectorAll('[data-staff-reset]').forEach(b=>b.onclick=()=>resetStaffPassword(b.dataset.staffReset));
+  $('#staff-refresh').onclick=async()=>{
+    if(adminBusy)return;adminBusy=true;try{await loadMaster();renderStaffAdmin('最新の職員情報に更新しました。')}
+    catch(e){notify('職員情報の取得に失敗しました。 '+errorMessage(e))}finally{adminBusy=false}
+  };
+  $('#staff-back').onclick=home;
+}
+function showOneTimeStaffPassword(id,password,kind){
+  const holder=$('#staff-secret-holder');if(!holder)return;
+  holder.innerHTML=`<div class="initial-password-box" role="status">
+    <h3>${kind==='reset'?'パスワード再発行':'職員登録'}が完了しました</h3>
+    <p><b>職員ID：${esc(id)}</b></p>
+    <label for="staff-secret">初期パスワード（今回のみ表示）</label>
+    <input type="text" id="staff-secret" readonly spellcheck="false" autocomplete="off">
+    <button type="button" id="staff-copy-secret">パスワードをコピー</button>
+    <p class="hint">本人に安全な方法で渡してください。メモの放置・共有アカウント化は避けてください。初回ログインで変更が必要です。</p>
+    <button type="button" id="staff-clear-secret">表示を閉じる</button>
+  </div>`;
+  $('#staff-secret').value=password;
+  $('#staff-copy-secret').onclick=async()=>{
+    try{await navigator.clipboard.writeText($('#staff-secret').value);$('#staff-copy-secret').textContent='コピーしました'}
+    catch(_){$('#staff-secret').select();notify('自動コピーできませんでした。パスワードの文字列を選択してコピーしてください。')}
+  };
+  $('#staff-clear-secret').onclick=()=>{holder.replaceChildren()};
+}
+async function createStaffFromForm(e){
+  e.preventDefault();if(adminBusy||staff?.role!=='admin')return;
+  const form=$('#staff-admin-create');if(!form.reportValidity())return;
+  const id=$('#staff-new-id').value.trim().toUpperCase(),name=$('#staff-new-name').value.trim();
+  if(!/^S\d{3,8}$/.test(id)||!name){notify('職員IDと氏名を確認してください。');return}
+  if(!confirm(`${id} / ${name}\n権限：一般職員（固定）\n\n職員を登録し、初期パスワードを発行しますか？`))return;
+  adminBusy=true;const button=$('#staff-create-button');button.disabled=true;button.textContent='登録中…';
+  try{
+    const data=await callStaffAdmin({action:'create',id,name});
+    await loadMaster();renderStaffAdmin(`${id} を登録しました。`);showOneTimeStaffPassword(id,data.initial_password,'create');
+  }catch(e){notify('登録できませんでした。再試行前に一覧を更新してください。\n'+errorMessage(e));button.disabled=false;button.textContent='登録して初期パスワードを発行'}
+  finally{adminBusy=false}
+}
+async function setStaffActive(id,active){
+  if(adminBusy||staff?.role!=='admin')return;
+  const row=C.staff.find(x=>x.id===id);if(!row||row.role!=='staff')return;
+  if(!confirm(`${id} / ${row.name}\n${active?'再有効化':'無効化'}しますか？\n過去の記録は残ります。`))return;
+  adminBusy=true;
+  try{await callStaffAdmin({action:'set_active',id,active});await loadMaster();renderStaffAdmin(`${id} を${active?'再有効化':'無効化'}しました。`)}
+  catch(e){notify('操作に失敗しました。\n'+errorMessage(e))}finally{adminBusy=false}
+}
+async function resetStaffPassword(id){
+  if(adminBusy||staff?.role!=='admin')return;
+  const row=C.staff.find(x=>x.id===id);if(!row||row.role!=='staff')return;
+  if(!confirm(`${id} / ${row.name}\n\n本人確認が完了した場合だけ再発行してください。\n旧パスワードは使えなくなります。続けますか？`))return;
+  adminBusy=true;
+  try{const data=await callStaffAdmin({action:'reset_password',id});renderStaffAdmin(`${id} のパスワードを再発行しました。`);showOneTimeStaffPassword(id,data.initial_password,'reset')}
+  catch(e){notify('パスワード再発行に失敗しました。\n'+errorMessage(e))}finally{adminBusy=false}
+}
+function renderInitialPasswordChange(){
+  stopScan();screen='setup';updateHeader();
+  $('#app').innerHTML=`<span class="section-label">初回ログイン</span><h2>パスワードを変更してください</h2>
+    <p class="lead">管理者が発行した初期パスワードは変更が必要です。英数字・記号を組み合わせて14文字以上にしてください。</p>
+    <form id="staff-password-form" class="card admin-form">
+      <label for="staff-new-pw">新しいパスワード</label><input id="staff-new-pw" type="password" required minlength="14" maxlength="128" autocomplete="new-password">
+      <label for="staff-repeat-pw">新しいパスワード（確認）</label><input id="staff-repeat-pw" type="password" required minlength="14" maxlength="128" autocomplete="new-password">
+      <div id="error" role="alert"></div><button class="pri" type="submit" id="pw-change-submit">変更して利用を開始する</button>
+    </form><button id="initial-sign-out" type="button">ログアウトして戻る</button>`;
+  $('#initial-sign-out').onclick=async()=>{await client.auth.signOut();user=null;staff=null;renderLogin()};
+  $('#staff-password-form').onsubmit=async e=>{
+    e.preventDefault();const p=$('#staff-new-pw').value;
+    if(p!==$('#staff-repeat-pw').value){notify('確認用パスワードと一致しません。');return;}
+    if(p.length<14||p.length>128){notify('パスワードは14〜128文字にしてください。');return;}
+    const b=$('#pw-change-submit');b.disabled=true;b.textContent='更新中…';
+    try{
+      await callStaffAdmin({action:'change_password',new_password:p});
+      await boot();
+    }catch(err){notify('パスワード変更を確認できませんでした。サーバー設定を確認してください。\n'+errorMessage(err));b.disabled=false;b.textContent='変更して利用を開始する'}
+  };
+}
+
 function nextGroupId(){
   const mx=Math.max(0,...C.qrGroups.map(g=>/^G\d+$/.test(g.id)?Number(g.id.slice(1)):0));
   return 'G'+String(mx+1).padStart(3,'0');
@@ -2806,6 +2998,11 @@ async function init(){
   if(!window.supabase?.createClient){screen='blocked';updateHeader();$('#app').innerHTML='<div class="err">Supabaseライブラリを読み込めません。ネットワーク接続を確認してください。</div>';return}
   // URLを開くたびにログイン画面から開始するため、認証情報をブラウザに保存しない。
   client=window.supabase.createClient(config.url,config.publishableKey,{auth:{persistSession:false,autoRefreshToken:true,detectSessionInUrl:false}});
+  $('#menu-toggle').onclick=()=>{$('#admin-drawer').hidden?openAdminMenu():closeAdminMenu()};
+  $('#admin-menu-overlay').onclick=closeAdminMenu;
+  $('#drawer-close').onclick=()=>{closeAdminMenu();$('#menu-toggle').focus()};
+  document.querySelectorAll('#admin-drawer [data-go]').forEach(b=>b.onclick=()=>goAdminMenu(b.dataset.go));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#admin-drawer').hidden){closeAdminMenu();$('#menu-toggle').focus()}});
   $('#logout').onclick=async()=>{stopScan();try{await client.auth.signOut()}finally{user=null;staff=null;C.staff=[];C.residents=[];C.medicines=[];C.prescriptions=[];C.logs=[];C.corrections=[];C.qrGroups=[];C.qrGroupItems=[];C.qrReady=false;renderLogin()}};
   client.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){user=null;staff=null;renderLogin()}});
   // 初回表示は必ずログイン画面。職員権限はログインに成功した後で初めて確認する。
