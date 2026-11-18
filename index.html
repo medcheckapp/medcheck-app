@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>服薬確認 | QR期間表示・スマホタブレット修正版（テスト）</title>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow">
+<title>服薬確認 | 本番導入準備版</title>
 <script src="./config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
@@ -732,6 +732,138 @@ button.staff-directory-row:hover{border-color:var(--main);background:#fcfefd}
     min-width:0;
     max-width:100%;
   }
+}
+
+
+/* ---------- 服薬履歴・訂正画面：スマホ / タブレットの専用レイアウト ----------
+ * 横幅固定の6列表は使わず、日時・利用者・薬を1件ごとに表示。
+ * iPadOS Safariの日付コントロールは外枠で幅を管理。
+ */
+#history-view, #history-view * { box-sizing:border-box; }
+#history-view { min-width:0; max-width:100%; }
+#history-view .history-tools {
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:13px;
+  padding:clamp(14px,3vw,20px);
+  max-width:100%;
+}
+#history-view .history-filter-field { min-width:0; width:100%; max-width:100%; }
+#history-view .history-filter-field label { margin-bottom:7px; overflow-wrap:anywhere; }
+#history-view .history-filter-field input,
+#history-view .history-filter-field select {
+  display:block; box-sizing:border-box; width:100%; min-width:0; max-width:100%;
+  font-size:16px; margin:0;
+}
+#history-view .history-date-frame {
+  width:100%; min-width:0; max-width:100%; box-sizing:border-box;
+  border:1px solid #bdcac2; border-radius:8px; background:#fff;
+  overflow:hidden;
+}
+#history-view .history-date-frame:focus-within {
+  outline:3px solid #8dbaa8; outline-offset:2px;
+}
+#history-view .history-date-frame input[type="date"] {
+  display:block;
+  box-sizing:border-box;
+  inline-size:100%; width:100%; min-inline-size:0; min-width:0;
+  max-inline-size:100%; max-width:100%; min-height:50px;
+  padding:10px 12px; border:0; border-radius:0; margin:0;
+  background:transparent; line-height:normal; text-align:left;
+}
+#history-view .history-date-frame input[type="date"]:focus-visible { outline:none; }
+#history-view .history-records { display:grid; grid-template-columns:minmax(0,1fr); gap:13px; margin:0 0 18px; min-width:0; }
+#history-view .history-record-card {
+  display:grid; gap:15px;
+  min-width:0; max-width:100%; overflow:hidden;
+  background:var(--paper); border:1px solid var(--line); border-radius:12px;
+  padding:clamp(14px,3vw,19px);
+}
+#history-view .history-record-card.history-needs-attention { border-left:4px solid #c17b65; }
+#history-view .history-record-head {
+  display:flex; flex-wrap:wrap; align-items:flex-start;
+  justify-content:space-between; gap:9px 12px; min-width:0;
+}
+#history-view .history-record-title { min-width:0; flex:1 1 160px; }
+#history-view .history-record-title strong {
+  display:block; font-size:17px; line-height:1.45; overflow-wrap:anywhere;
+}
+#history-view .history-record-title small {
+  display:block; color:var(--muted); font-size:13px; margin-top:4px;
+}
+#history-view .history-record-status {
+  flex:0 1 auto; max-width:100%; white-space:normal;
+  padding:5px 11px; border-radius:7px; background:var(--main-soft);
+  color:var(--main-dark); font-size:13px; font-weight:750; overflow-wrap:anywhere;
+}
+#history-view .history-record-status.attention { background:var(--danger-soft); color:var(--danger); }
+#history-view .history-record-details {
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px 14px; margin:0; min-width:0;
+}
+#history-view .history-record-details > div { min-width:0; overflow-wrap:anywhere; }
+#history-view .history-record-details dt { font-size:12px; font-weight:700; color:var(--muted); }
+#history-view .history-record-details dd { margin:3px 0 0; font-size:15px; font-weight:650; line-height:1.55; overflow-wrap:anywhere; }
+#history-view .history-record-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; min-width:0; }
+#history-view .history-record-actions.single { grid-template-columns:minmax(0,1fr); }
+#history-view .history-record-actions button {
+  display:block; width:100%; min-width:0; min-height:46px;
+  margin:0; padding:10px 8px; font-size:14px; white-space:normal;
+  overflow-wrap:anywhere;
+}
+#history-view .history-record-actions button.history-correct-button {
+  color:var(--main-dark); border-color:var(--main);
+}
+#history-view .history-empty {
+  padding:24px 18px; text-align:center; border:1px dashed var(--line);
+  background:#fff; border-radius:10px; color:var(--muted);
+}
+/* 訂正・変更履歴のダイアログは画面内スクロールにする */
+.ov.history-overlay {
+  position:fixed; inset:0; z-index:1200;
+  padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right))
+          max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+  align-items:center; justify-content:center; overflow-x:hidden; overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.ov.history-overlay .correction-modal {
+  box-sizing:border-box;
+  width:min(100%,520px); min-width:0; max-width:520px;
+  max-height:calc(100vh - 24px); max-height:calc(100dvh - 24px);
+  overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  margin:auto; padding:clamp(15px,3vw,23px);
+  overflow-wrap:anywhere;
+}
+.ov.history-overlay .correction-modal h2,
+.ov.history-overlay .correction-modal .lead,
+.ov.history-overlay .correction-modal .info-panel,
+.ov.history-overlay .correction-modal .audit-entry {
+  min-width:0; max-width:100%; overflow-wrap:anywhere;
+}
+.ov.history-overlay .correction-modal input,
+.ov.history-overlay .correction-modal select,
+.ov.history-overlay .correction-modal textarea {
+  display:block; box-sizing:border-box; width:100%; max-width:100%; min-width:0;
+  font-size:16px;
+}
+.ov.history-overlay .correction-actions {
+  display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; min-width:0; margin-top:16px;
+}
+.ov.history-overlay .correction-actions button { margin:0; min-width:0; max-width:100%; padding:10px 9px; white-space:normal; }
+.ov.history-overlay .audit-items {
+  width:100%; min-width:0; max-width:100%;
+  max-height:45vh; max-height:45dvh;
+  overflow-x:hidden; overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+}
+@media (max-width:520px) {
+  #history-view .history-record-details { grid-template-columns:minmax(0,1fr); gap:10px; }
+  #history-view .history-record-actions { grid-template-columns:minmax(0,1fr); }
+  .ov.history-overlay .correction-actions { grid-template-columns:minmax(0,1fr); }
+}
+@media (max-height:530px) {
+  .ov.history-overlay { align-items:flex-start; }
 }
 
 </style></head><body>
@@ -2065,7 +2197,7 @@ function periodQrValue(id,start,end){return `MC2|${start}|${end}|${id}`;}
 let client=null, user=null, staff=null, screen='login', scanStream=null, scanRaf=0, scanBusy=false, scanToken=0;
 const C={staff:[],residents:[],medicines:[],prescriptions:[],logs:[],corrections:[],date:null,qrGroups:[],qrGroupItems:[],qrReady:false};
 const Q={panel:'print',residentId:'',slot:'朝',startDate:todayJST(),endDate:todayJST(),groupResident:'',groupSlot:'朝',groupPeriod:''};
-const A={slot:currentSlot(),resident:null,rx:null,check:null,status:null,reason:'',rsel:'',rfree:'',date:todayJST(),filter:'すべて',historyResident:'',historyDate:todayJST(),lastSaved:null,step:1};
+const A={slot:currentSlot(),resident:null,rx:null,qrText:null,check:null,status:null,reason:'',rsel:'',rfree:'',date:todayJST(),filter:'すべて',historyResident:'',historyDate:todayJST(),lastSaved:null,step:1};
 const repo={
   getStaffList:()=>C.staff,
   getStaff:id=>C.staff.find(x=>x.id===id),
@@ -2117,7 +2249,7 @@ function renderLogin(message=''){
   screen='login';staff=null;user=null;updateHeader();
   $('#app').innerHTML=`<div class="login-shell"><span class="section-label">職員専用</span><h2>ログイン</h2>
   <p class="lead">職員IDとパスワードでログインできます。最初に登録した管理者は、従来のメールアドレスでもログインできます。</p>
-  <div class="safety-panel">安全検証中の接続版です。実在する利用者・処方・服薬記録は、運用承認が終わるまで登録しないでください。</div>
+  <div class="safety-panel">本番導入準備版です。施設の運用承認・セキュリティ検査が完了するまでは架空データのみを使用してください。</div>
   <form class="card" id="login-form"><label for="email">職員ID または メールアドレス</label><input type="text" id="email" required maxlength="160" autocomplete="username" placeholder="例：S002 または staff@example.com">
   <label for="password">パスワード</label><input type="password" id="password" required autocomplete="current-password">
   <button class="pri" type="submit" id="login-button">ログイン</button><div id="error" role="alert"></div></form>
@@ -2333,7 +2465,7 @@ function renderAdmin(kind='resident',info=''){
   });
   $('#app').innerHTML=`<span class="section-label">管理者専用</span><h2>利用者・薬・処方の管理</h2>
     <p class="lead">管理者アカウントで登録・無効化できます。ほかの管理機能は右上の「≡」から切り替えられます。</p>
-    <div class="safety-panel">現在はテスト運用専用です。実在する利用者・薬・処方は、権限・監査・業務手順の検証が終わるまで登録しないでください。削除は行わず、過去の記録を残して無効化します。</div>
+    <div class="safety-panel">本番導入前の検証中です。施設の権限・監査・業務手順の検証が終わるまで架空データのみで操作してください。削除は行わず、過去の記録を残して無効化します。</div>
     <div class="admin-tabs">${Object.entries(ADMIN_META).map(([key,v])=>`<button type="button" class="${kind===key?'active':''}" data-admin-tab="${key}">${v.title}</button>`).join('')}</div>
     ${info?`<div class="info-panel" role="status">${esc(info)}</div>`:''}
     <form id="admin-create" class="card admin-form"><h3>新しい${ADMIN_META[kind].title}を登録</h3>
@@ -2666,7 +2798,7 @@ function renderQRAdmin(info=''){
   if(!Q.residentId||!C.residents.some(x=>x.id===Q.residentId&&x.is_active))Q.residentId=C.residents.find(x=>x.is_active)?.id||'';
   $('#app').innerHTML=`<span class="section-label">管理者専用</span><h2>QR作成・印刷</h2>
     <p class="lead">登録済み処方から、指定期間に使えるQRを処方・一包化グループごとに1枚ずつ作成・印刷します。Excelへの二重入力は不要です。</p>
-    <div class="safety-panel">テスト用です。実データは使用しないでください。期間付きQRはその期間内に限り読み取りできます。同じQRを期間内の別の日にも読み取れるため、毎回、当日の服薬予定・利用者・時間帯・薬袋の現物を確認してください。旧QRと手入力には日付制限がないため、本番運用前の制限が必要です。印刷後に処方が変更された場合は古いラベルを回収してください。</div>
+    <div class="safety-panel">本番導入前の検証中です。承認前は架空データのみで確認してください。期間付きQRはサーバー側でも日付と登録期間を照合します。毎回、当日の服薬予定・利用者・時間帯・薬袋の現物を確認してください。古い形式のQRと処方ID手入力では記録できません。処方変更時は旧ラベルを回収してください。</div>
     ${C.qrReady?'':`<div class="err">03_QR一包化連携.sql が未設定か読み込めません。QR発行機能は停止しています。先にテスト用SupabaseでSQLを設定してください。</div>`}
     ${info?`<div class="info-panel" role="status">${esc(info)}</div>`:''}
     <div class="qr-top-actions"><button id="qr-show-print" class="${Q.panel==='print'?'active':''}">QR一覧・印刷</button><button id="qr-show-group" class="${Q.panel==='group'?'active':''}">一包化を登録</button></div>
@@ -2836,7 +2968,7 @@ function renderQRPrint(){
   const r=repo.getResident(Q.residentId);
   $('#app').innerHTML=`<div id="qr-page"><div id="print-toolbar"><h2>QR印刷プレビュー（期間内1枚）</h2>
     <p class="lead">${esc(r?.name||Q.residentId)} ／ ${esc(Q.slot)} ／ ${esc(Q.startDate)} ～ ${esc(Q.endDate)} ｜ ${data.items.length}枚</p>
-    <div class="safety-panel">1枚のQRを複数日に使用できます。QRは服薬済みの証明や薬の実物確認の代わりにはなりません。毎回、当日の服薬予定と現物を確認してください。処方変更後の古いラベルは回収してください。実在する利用者情報はテスト版に入力しないでください。</div>
+    <div class="safety-panel">1枚のQRを複数日に使用できます。QRは服薬済みの証明や薬の実物確認の代わりにはなりません。毎回、当日の服薬予定と現物を確認してください。処方変更後の古いラベルは回収してください。導入承認前は架空データのみで確認してください。</div>
     <button class="pri" id="qr-print-button">QRラベルを印刷する</button><button id="qr-print-back">条件を変更する</button></div>
     <div class="qr-print-heading">${esc(r?.name||Q.residentId)} ／ ${esc(Q.slot)} ／ ${esc(Q.startDate)} ～ ${esc(Q.endDate)} （${data.items.length}枚）</div>
     <div class="qr-label-grid">${data.items.map(printLabel).join('')}</div></div>`;
@@ -2855,7 +2987,7 @@ function renderResidents(){screen='flow';A.step=2;updateHeader();A.resident=null
 function renderConfirmResident(){A.step=2;updateHeader();const r=A.resident;
   $('#app').innerHTML=`<span class="section-label">STEP 02 / 本人確認</span><h2>ご本人の確認</h2>
   <div class="card person-card"><div class="big">${esc(r.name)}</div><p class="muted">${esc(r.kana||'')}</p><div class="person-room">${esc(r.room||'—')}号室</div></div>
-  <div class="safety-panel">この移行版では本人確認用写真をまだ連携していません。氏名・部屋番号だけで本人確認を完了させず、施設の正式な手順で確認してください。</div>
+  <div class="safety-panel">顔写真は使用しません。氏名・部屋番号だけで本人確認を完了させず、施設の正式な手順で確認してください。</div>
   <button id="yes" class="pri">別の手順で本人を確認した</button><button id="no">選び直す</button>`;
   $('#yes').onclick=renderScan;$('#no').onclick=renderResidents;
 }
@@ -2897,26 +3029,26 @@ async function ensureQRDecoder(){
   return qrDecoderLoading;
 }
 function setQRStatus(t){const el=$('#qr-status');if(el)el.textContent=t}
-function renderScan(){screen='flow';A.step=3;A.status=null;A.rsel='';A.rfree='';A.group=null;A.groupCheck=null;updateHeader();stopScan();
+function renderScan(){screen='flow';A.step=3;A.status=null;A.rsel='';A.rfree='';A.group=null;A.groupCheck=null;A.qrText=null;updateHeader();stopScan();
   $('#app').innerHTML=`<span class="section-label">STEP 03 / 薬袋QR</span><h2>薬袋のQRを読み取る</h2>
   <div class="card"><b>${esc(A.resident.name)}</b> ／ ${esc(A.slot)}</div>
-  <div class="qrguide">個別包装は処方ID（例：P001）、一包化は袋ID（例：G001）を読み取ります。<br>Excelファイルではなく、QRが写った画像（PNG・JPEG等）を選んでください。</div>
+  <div class="qrguide">個別包装は処方ID（例：P001）、一包化は袋ID（例：G001）を含む**期間付きQR**を読み取ります。<br>Excelファイルではなく、QRが写った画像（PNG・JPEG等）を選んでください。</div>
   <div id="qr-status" class="hint" role="status" aria-live="polite">QR読み取り機能を確認しています…</div>
   <div id="cam" style="display:none"><video id="video" autoplay playsinline muted></video><button id="stop">カメラを停止</button></div>
   <div id="error" role="alert"></div>
   <button class="pri" id="start">カメラを起動する</button>
   <button type="button" id="alternate-camera">別のカメラ設定で試す</button>
   <div class="card"><h3>写真からQRを読み取る</h3><p class="hint">QRコードが鮮明に写ったPNG・JPEG画像を選択してください。</p><input type="file" id="qrphoto" accept="image/*" aria-label="QR画像を選択"></div>
-  <div class="card"><h3>処方IDを手入力する</h3><input id="code" autocomplete="off" placeholder="例：P001 または G001"><button id="manual">番号を照合する</button></div>
+  <div class="safety-panel">本番導入準備版では処方IDの手入力を停止しています。必ず期間付きQR（MC2形式）を読み取ってください。処方変更後の旧QRは使わないでください。</div>
   <button id="back">利用者選択へ戻る</button><canvas id="cv" hidden></canvas>`;
   $('#start').onclick=()=>startScan(false);
   $('#alternate-camera').onclick=()=>startScan(true);
   $('#stop').onclick=()=>{stopScan();$('#cam').style.display='none';$('#start').style.display=''};
-  $('#manual').onclick=()=>onCode($('#code').value);$('#qrphoto').onchange=photoScan;$('#back').onclick=renderResidents;
+  $('#qrphoto').onchange=photoScan;$('#back').onclick=renderResidents;
   (async()=>{
     const ok=await ensureQRDecoder();
     if(!$('#qr-status'))return;
-    setQRStatus(ok?'QR解析部品：利用可能':'QR解析部品：読み込めませんでした。通信を確認するか処方IDを手入力してください。');
+    setQRStatus(ok?'QR解析部品：利用可能':'QR解析部品：読み込めませんでした。通信を確認してください。');
   })();
 }
 async function decodeQR(source,canvas,isStill=false){
@@ -2971,7 +3103,7 @@ async function startScan(useAny=false){
   const start=$('#start');if(start){start.disabled=true;start.textContent='カメラの起動を確認中…'}
   try{
     if(!await ensureQRDecoder()){
-      notify('QR解析部品を読み込めません。通信環境を確認してください。手入力は使用できます。');return;
+      notify('QR解析部品を読み込めません。通信環境を確認してください。');return;
     }
     setQRStatus('QR解析部品：利用可能');
     const constraints=useAny?{video:true,audio:false}:{video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false};
@@ -3042,22 +3174,17 @@ async function photoScan(e){
   }catch(e){notify('画像の処理に失敗しました。'+String(e?.message||e).slice(0,150))}
   finally{if(chooser.isConnected){chooser.disabled=false;chooser.value=''}}
 }
-async function onCode(raw){stopScan();const qrText=String(raw||'').trim();if(!qrText){notify('処方IDを入力してください。');return}
-  let code=qrText;
-  if(qrText.startsWith('MC2|')){
-    const p=/^MC2\|(\d{4}-\d{2}-\d{2})\|(\d{4}-\d{2}-\d{2})\|([PG][0-9]{3,8})$/.exec(qrText);
-    const period=p&&periodDates(p[1],p[2]);
-    if(!period||period.error){renderScan();notify('期間付きQRの形式・開始日・終了日を確認できません。再発行してください。');return}
-    const today=todayJST();
-    if(today<p[1]||today>p[2]){renderScan();notify(`このQRの使用期間は ${p[1]} ～ ${p[2]} です。今日は ${today} なので照合を停止しました。`);return}
-    code=p[3];
-  }else if(qrText.startsWith('MC1|')){
-    const parts=/^MC1\|(\d{4}-\d{2}-\d{2})\|([PG][A-Za-z0-9_-]{1,40})$/.exec(qrText);
-    if(!parts||!parseDateISO(parts[1])){renderScan();notify('日付付きQRの形式が正しくありません。もう一度読み取ってください。');return}
-    const qrDate=parts[1],today=todayJST();
-    if(qrDate!==today){renderScan();notify(`QRの服薬予定日は ${qrDate} ですが、今日は ${today} です。別の日の薬袋なので照合を停止しました。`);return}
-    code=parts[2];
-  }else if(qrText.includes('|')){renderScan();notify('QRの形式を確認できません。新しいQRを発行してください。');return}
+async function onCode(raw){
+  stopScan();
+  const qrText=String(raw||'').trim();
+  // 古い日付なしQR・MC1・手入力IDを受け付けない。保存時はサーバーでも再検証。
+  const p=/^MC2\|(\d{4}-\d{2}-\d{2})\|(\d{4}-\d{2}-\d{2})\|([PG][0-9]{3,8})$/.exec(qrText);
+  const range=p&&periodDates(p[1],p[2]);
+  if(!p||!range||range.error){renderScan();notify('このQRは本番導入準備版で使用できません。期間付きQRを管理者画面から発行してください。');return;}
+  const today=todayJST();
+  if(today<p[1]||today>p[2]){renderScan();notify('QRの使用期間外です。新しいQRを発行してください。');return;}
+  const code=p[3];
+  A.qrText=qrText;
   setLoading('最新の処方と記録を確認しています');
   try{await loadMaster();await loadLogs(todayJST());
     if(/^G[0-9]{3,8}$/.test(code)){
@@ -3137,8 +3264,8 @@ async function saveGroupRecord(){
   if(!confirm(`${A.resident.name} ／ ${g.id} ／ ${c.rxs.length}種類 ／ ${A.status}\n\n全処方に同じ結果を一括記録しますか？`))return;
   const b=$('#save');b.disabled=true;b.textContent='一括保存中…';
   try{
-    const {data,error}=await client.rpc('medcheck_record_group',{
-      p_group_id:g.id,p_resident_id:A.resident.id,p_selected_slot:A.slot,p_status:A.status,p_reason:reason
+    const {data,error}=await client.rpc('medcheck_record_group_qr',{
+      p_qr_value:A.qrText,p_group_id:g.id,p_resident_id:A.resident.id,p_selected_slot:A.slot,p_status:A.status,p_reason:reason
     });if(error)throw error;
     if(data?.result==='duplicate'){
       await loadLogs(todayJST());A.groupCheck=verifyGroup(g);renderGroupVerify();notify('重複記録を防止しました。すでに一包化内に記録済みの薬があります。');return;
@@ -3189,8 +3316,8 @@ async function saveRecord(){
   if(!confirm(`${A.resident.name} ／ ${A.check.med.name} ／ ${A.status}\nこの結果をサーバーに記録しますか？`))return;
   const b=$('#save');b.disabled=true;b.textContent='保存中…';
   try{
-    const {data,error}=await client.rpc('medcheck_record_medication',{
-      p_prescription_id:A.rx.id,p_resident_id:A.resident.id,p_selected_slot:A.slot,p_status:A.status,p_reason:reason
+    const {data,error}=await client.rpc('medcheck_record_medication_qr',{
+      p_qr_value:A.qrText,p_prescription_id:A.rx.id,p_resident_id:A.resident.id,p_selected_slot:A.slot,p_status:A.status,p_reason:reason
     });if(error)throw error;
     if(data?.result==='duplicate'){
       await loadLogs(todayJST());A.check=verify(A.rx);renderVerify();notify('二重登録を防止しました。すでに記録済みです。服薬履歴を確認してください。');return;
@@ -3241,19 +3368,24 @@ async function showHistory(date=A.historyDate){stopScan();screen='history';A.his
   try{await loadMaster();await loadLogs(date);renderHistory()}catch(e){renderLoadFail('服薬履歴を読み込めませんでした。'+errorMessage(e),()=>showHistory(date))}
 }
 function renderHistory(){screen='history';updateHeader();const logs=C.logs.filter(l=>!A.historyResident||l.residentId===A.historyResident);
-  $('#app').innerHTML=`<span class="section-label">サーバー共有 / 履歴</span><h2>服薬履歴・訂正履歴</h2>
+  $('#app').innerHTML=`<section id="history-view"><span class="section-label">サーバー共有 / 履歴</span><h2>服薬履歴・訂正履歴</h2>
   <p class="lead">原記録は残し、訂正は別の履歴として追記します。訂正できるのは管理者だけです。</p>
-  <div class="card history-tools"><div><label for="hist-date">日付</label><input id="hist-date" type="date" value="${esc(A.historyDate)}"></div>
-  <div><label for="hist-person">利用者</label><select id="hist-person"><option value="">全員</option>${C.residents.map(r=>`<option value="${esc(r.id)}" ${A.historyResident===r.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select></div></div>
-  <div class="table-wrap"><table><tr><th>時刻</th><th>利用者</th><th>薬・時間帯</th><th>現在の結果</th><th>担当</th><th>操作</th></tr>
-  ${logs.map(l=>{const changes=repo.getCorrections(l.id),now=repo.getCurrentStatus(l);
-    return `<tr class="${now!=='服薬済み'?'bad':''}"><td>${hm(l.createdAt)}</td>
-    <td>${esc(repo.getResident(l.residentId)?.name||'不明')}</td>
-    <td>${esc(repo.getMedicine(l.medicineId)?.name||'不明')}<br>${esc(l.timeSlot)}</td>
-    <td>${esc(now)}${changes.length?`<br><small>訂正${changes.length}回</small>`:''}</td>
-    <td>${esc(repo.getStaff(l.staffId)?.name||l.staffId)}</td><td><button class="action-link" data-audit="${esc(l.id)}">変更履歴</button>${staff.role==='admin'?`<button class="action-link" data-correct="${esc(l.id)}">訂正する</button>`:''}</td></tr>`}).join('')||'<tr><td colspan="6">記録がありません</td></tr>'}</table></div>
+  <div class="card history-tools"><div class="history-filter-field"><label for="hist-date">日付</label><div class="history-date-frame"><input id="hist-date" type="date" value="${esc(A.historyDate)}"></div></div>
+  <div class="history-filter-field"><label for="hist-person">利用者</label><select id="hist-person"><option value="">全員</option>${C.residents.map(r=>`<option value="${esc(r.id)}" ${A.historyResident===r.id?'selected':''}>${esc(r.name)}</option>`).join('')}</select></div></div>
+  <div class="history-records">${logs.map(l=>{const changes=repo.getCorrections(l.id),now=repo.getCurrentStatus(l);
+    const action=`<button type="button" data-audit="${esc(l.id)}">変更履歴を見る</button>${staff.role==='admin'?`<button type="button" class="history-correct-button" data-correct="${esc(l.id)}">訂正する</button>`:''}`;
+    return `<article class="history-record-card ${now!=='服薬済み'?'history-needs-attention':''}">
+      <div class="history-record-head"><div class="history-record-title"><strong>${esc(repo.getResident(l.residentId)?.name||'不明')}</strong><small>${esc(hm(l.createdAt))} ／ ${esc(l.timeSlot)}</small></div>
+      <span class="history-record-status ${now==='服薬済み'?'':'attention'}">${esc(now)}</span></div>
+      <dl class="history-record-details">
+        <div><dt>薬剤</dt><dd>${esc(repo.getMedicine(l.medicineId)?.name||'不明')}</dd></div>
+        <div><dt>担当職員</dt><dd>${esc(repo.getStaff(l.staffId)?.name||l.staffId)}</dd></div>
+        <div><dt>初回記録</dt><dd>${esc(l.status)}</dd></div>
+        <div><dt>訂正回数</dt><dd>${changes.length}回</dd></div>
+      </dl>
+      <div class="history-record-actions ${staff.role==='admin'?'':'single'}">${action}</div></article>`;}).join('')||'<div class="history-empty">選択した日付・利用者の記録はありません。</div>'}</div>
   ${staff.role==='admin'?'<button id="csv">この日の履歴CSVを出力（管理者のみ）</button>':''}
-  <button class="pri" id="refresh">最新の情報に更新</button><button id="status">服薬状況を見る</button><button id="back">確認画面に戻る</button>`;
+  <button class="pri" id="refresh">最新の情報に更新</button><button id="status">服薬状況を見る</button><button id="back">確認画面に戻る</button></section>`;
   $('#hist-date').onchange=e=>{if(e.target.value)showHistory(e.target.value)};
   $('#hist-person').onchange=e=>{A.historyResident=e.target.value;renderHistory()};
   document.querySelectorAll('[data-audit]').forEach(b=>b.onclick=()=>showAudit(b.dataset.audit));
@@ -3262,19 +3394,19 @@ function renderHistory(){screen='history';updateHeader();const logs=C.logs.filte
   $('#refresh').onclick=()=>showHistory(A.historyDate);$('#status').onclick=()=>showStatus();$('#back').onclick=home;
 }
 function closeModal(d){d.remove()}
-function modal(html){const d=document.createElement('div');d.className='ov';d.innerHTML=`<div class="card correction-modal">${html}</div>`;document.body.appendChild(d);return d}
+function modal(html){const d=document.createElement('div');d.className='ov history-overlay';d.innerHTML=`<div class="card correction-modal" role="dialog" aria-modal="true" aria-labelledby="medcheck-modal-title">${html}</div>`;document.body.appendChild(d);return d}
 function showAudit(logId){const log=C.logs.find(l=>l.id===logId);if(!log)return;const changes=repo.getCorrections(logId);
-  const d=modal(`<h2 style="font-size:22px">記録の変更履歴</h2><div class="audit-items">
+  const d=modal(`<h2 id="medcheck-modal-title" style="font-size:22px">記録の変更履歴</h2><div class="audit-items">
   <div class="audit-entry"><b>初回：${esc(log.status)}</b><br><small>${esc(log.createdAt)} ／ ${esc(repo.getStaff(log.staffId)?.name||log.staffId)}</small>${log.reason?`<p>${esc(log.reason)}</p>`:''}</div>
   ${changes.map(c=>`<div class="audit-entry"><b>${esc(c.fromStatus)} → ${esc(c.toStatus)}</b><br><small>${esc(c.createdAt)} ／ ${esc(repo.getStaff(c.staffId)?.name||c.staffId)}</small><p>理由：${esc(c.reason)}</p></div>`).join('')}</div>
   <button class="pri" id="close">閉じる</button>`);d.querySelector('#close').onclick=()=>closeModal(d);
 }
 function showCorrection(logId){if(staff.role!=='admin')return;const log=C.logs.find(l=>l.id===logId);if(!log)return;const expected=repo.getCurrentStatus(log);
-  const d=modal(`<h2 style="font-size:22px">服薬記録を訂正</h2><p class="lead">原記録を変更せず訂正履歴を追加します。管理者ログインが必要です。</p>
+  const d=modal(`<h2 id="medcheck-modal-title" style="font-size:22px">服薬記録を訂正</h2><p class="lead">原記録を変更せず訂正履歴を追加します。管理者ログインが必要です。</p>
   <div class="info-panel">初回：${esc(log.status)} ／ 現在：${esc(expected)}<br>訂正担当：${esc(staff.name)}</div>
   <label for="new-status">訂正後の結果</label><select id="new-status">${STATUSES.map(x=>`<option value="${x}" ${x===expected?'selected':''}>${x}</option>`).join('')}</select>
   <label for="corr-reason">訂正理由（5文字以上）</label><textarea id="corr-reason" maxlength="1000" placeholder="理由を具体的に入力してください"></textarea>
-  <div id="modal-error"></div><div class="row"><button id="cancel">戻る</button><button class="pri" id="commit">訂正を保存</button></div>`);
+  <div id="modal-error" role="alert"></div><div class="correction-actions"><button id="cancel">戻る</button><button class="pri" id="commit">訂正を保存</button></div>`);
   d.querySelector('#cancel').onclick=()=>closeModal(d);
   d.querySelector('#commit').onclick=async()=>{
     const status=d.querySelector('#new-status').value,reason=d.querySelector('#corr-reason').value.trim();
@@ -3299,6 +3431,12 @@ function exportCsv(logs){
 }
 async function init(){
   const config=window.MEDCHECK_CONFIG||{};
+  if(config.environment !== 'staging' && config.environment !== 'production'){
+    screen='blocked';updateHeader();$('#app').innerHTML='<h2>環境設定が未完了です</h2><div class="err">config.js の environment は staging または production を指定してください。</div>';return;
+  }
+  if(config.environment==='production' && (config.releaseApproved!==true || !config.allowedHost || location.hostname!==config.allowedHost)){
+    screen='blocked';updateHeader();$('#app').innerHTML='<h2>本番利用はまだ許可されていません</h2><div class="err">施設の承認後に本番用config.jsの許可設定と公開ドメインを確認してください。誤接続防止のためログインを停止しています。</div>';return;
+  }
   if(!config.url||config.url.includes('YOUR-PROJECT')||!config.publishableKey||config.publishableKey.includes('PASTE_')){
     screen='blocked';updateHeader();$('#app').innerHTML=`<h2>Supabase接続設定が未完了です</h2><div class="info-panel">config.jsにProject URLとPublishable keyを入力してください。secret key・service_roleキーやデータベースのパスワードは絶対に入れないでください。</div>`;return;
   }
@@ -3311,7 +3449,7 @@ async function init(){
   document.querySelectorAll('#admin-drawer [data-go]').forEach(b=>b.onclick=()=>goAdminMenu(b.dataset.go));
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#admin-drawer').hidden){closeAdminMenu();$('#menu-toggle').focus()}});
   $('#logout').onclick=async()=>{stopScan();try{await client.auth.signOut()}finally{user=null;staff=null;C.staff=[];C.residents=[];C.medicines=[];C.prescriptions=[];C.logs=[];C.corrections=[];C.qrGroups=[];C.qrGroupItems=[];C.qrReady=false;renderLogin()}};
-  client.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){user=null;staff=null;renderLogin()}});
+  client.auth.onAuthStateChange((event)=>{if(event==='SIGNED_OUT'){stopScan();user=null;staff=null;C.staff=[];C.residents=[];C.medicines=[];C.prescriptions=[];C.logs=[];C.corrections=[];C.qrGroups=[];C.qrGroupItems=[];C.qrReady=false;A.qrText=null;renderLogin()}});
   // 初回表示は必ずログイン画面。職員権限はログインに成功した後で初めて確認する。
   renderLogin();
 }
